@@ -12,6 +12,16 @@
 
 通知、精确闹钟、锁屏响铃和悬浮窗权限在“仪表盘 → 权限与桌面”中设置。HyperOS 的自启动和省电限制需要在系统设置中调整。
 
+## 界面预览
+
+| 生活仪表盘 | 今日待办 | 助手快捷展开 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/dashboard.png" alt="生活仪表盘与居中的七天安排" width="240"> | <img src="docs/screenshots/today.png" alt="今日待办与 GPT 娘" width="240"> | <img src="docs/screenshots/assistant.png" alt="智能助手展开后的快捷操作" width="240"> |
+
+| 月历视图 | 音乐闹钟 | 番茄钟 |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/calendar.png" alt="可切换视图的日历" width="240"> | <img src="docs/screenshots/alarm.png" alt="滚轮时间选择与音乐闹钟设置" width="240"> | <img src="docs/screenshots/focus.png" alt="番茄钟与正计时" width="240"> |
+
 ## 能做什么
 
 - **一句话安排**：识别任务、备忘、闹钟和长期重复习惯；信息不足时追问，多项安排先展示方案再确认。复杂操作可连接兼容 OpenAI 接口的模型，离线仍支持手动操作与简单表达。
