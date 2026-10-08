@@ -1,0 +1,2 @@
+# Optional Python tools for character preparation and device UI checks.
+Pillow>=10.0

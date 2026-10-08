@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/gpt_icon,@drawable/gpt_idle,@drawable/gpt_sleep,@drawable/gpt_thinking,@drawable/gpt_waiting,@drawable/gpt_welcome" />

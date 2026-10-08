@@ -1,0 +1,1 @@
+<resources><style name="Theme.Qingban" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:windowLightStatusBar">true</item><item name="android:statusBarColor">#F6FAF8</item><item name="android:navigationBarColor">#F6FAF8</item></style></resources>
