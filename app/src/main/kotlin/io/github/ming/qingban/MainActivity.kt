@@ -37,7 +37,10 @@ class MainActivity : ComponentActivity() {
         setContent { QingbanApp(UiDependencies(container.services, container.assistant, platform), assistantRequest, sharedText) }
     }
     override fun onNewIntent(intent: Intent) { super.onNewIntent(intent); setIntent(intent); receiveIntent(intent) }
-    override fun onResume() { super.onResume(); lifecycleScope.launch { container.services.focus.load(); container.services.habits.load(); container.services.review.refresh(); DailyReviewScheduler.schedule(this@MainActivity) } }
+    // 用户从系统设置授予精确闹钟或通知权限后回到应用时，重新调度等待权限的闹钟
+    private var lastAlarmPermissions: Pair<Boolean,Boolean>? = null
+    private fun alarmPermissions() = (Build.VERSION.SDK_INT < 31 || getSystemService(AlarmManager::class.java).canScheduleExactAlarms()) to androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()
+    override fun onResume() { super.onResume(); val permissions=alarmPermissions(); val changed=lastAlarmPermissions!=null && lastAlarmPermissions!=permissions; lastAlarmPermissions=permissions; lifecycleScope.launch { if(changed) container.services.items.restoreSchedules(); container.services.focus.load(); container.services.habits.load(); container.services.review.refresh(); DailyReviewScheduler.schedule(this@MainActivity) } }
     override fun onSaveInstanceState(outState:Bundle) { outState.putInt("assistant_request",assistantRequest); outState.putString("shared_text",sharedText); super.onSaveInstanceState(outState) }
     private fun receiveIntent(intent: Intent) {
         if(intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {

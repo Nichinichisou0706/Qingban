@@ -1,6 +1,7 @@
 package io.github.ming.qingban.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -16,25 +17,28 @@ import io.github.ming.qingban.domain.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun ItemSelectionBar(active: Boolean, count: Int, total: Int, onStart: () -> Unit, onAll: () -> Unit, onClear: () -> Unit, onExit: () -> Unit, onDelete: () -> Unit, onUndo: () -> Unit) {
-    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-        if(!active) {
-            TextButton(onClick=onStart,enabled=total>0) { Text("多选") }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick=onUndo) { Text("撤销") }
-        } else {
-            Text("已选 $count",style=MaterialTheme.typography.labelLarge,modifier=Modifier.weight(1f))
-            TextButton(onClick=if(count==total) onClear else onAll,enabled=total>0) { Text(if(count==total) "全不选" else "全选") }
-            IconButton(onClick=onDelete,enabled=count>0) { Icon(Icons.Default.DeleteOutline,"删除 ($count)",tint=if(count>0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline) }
+    if(!active) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+        TextButton(onClick=onStart,enabled=total>0) { Text("多选") }
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick=onUndo) { Text("撤销") }
+    } else Surface(Modifier.fillMaxWidth().padding(vertical=6.dp),shape=CircleShape,color=MaterialTheme.colorScheme.primaryContainer) {
+        Row(Modifier.padding(start=6.dp,end=6.dp),verticalAlignment=Alignment.CenterVertically) {
             IconButton(onClick=onExit) { Icon(Icons.Default.Close,"退出多选") }
+            Text("已选 $count 项",style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onPrimaryContainer,modifier=Modifier.weight(1f))
+            TextButton(onClick=if(count==total) onClear else onAll,enabled=total>0) { Text(if(count==total) "全不选" else "全选") }
+            FilledTonalButton(onClick=onDelete,enabled=count>0,colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.errorContainer,contentColor=MaterialTheme.colorScheme.error)) { Icon(Icons.Default.DeleteOutline,null,Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("删除") }
         }
     }
 }
 
 @Composable fun SelectedItemCard(item: PlanItem, selected: Boolean, onSelect: () -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick=onSelect)) {
-        Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
-            Checkbox(selected,{ onSelect() },modifier=Modifier.semantics { contentDescription="选择事项：${item.title}" })
-            Column(Modifier.weight(1f)) { Text(item.title,style=MaterialTheme.typography.titleMedium); Text(itemTime(item)); if(item.isHabitTask) Text("习惯 · ${RecurrenceRules.label(item.schedule!!.recurrence!!)}",style=MaterialTheme.typography.labelSmall) }
+    QCard(Modifier.fillMaxWidth(),onClick=onSelect,color=if(selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface) {
+        Row(Modifier.padding(start=4.dp,end=12.dp,top=8.dp,bottom=8.dp),verticalAlignment=Alignment.CenterVertically) {
+            RoundCheck(selected,onSelect,"选择事项：${item.title}")
+            Column(Modifier.weight(1f)) {
+                Text(item.title,style=MaterialTheme.typography.titleSmall)
+                Text(itemTime(item)+if(item.isHabitTask) " · 习惯 · ${RecurrenceRules.label(item.schedule!!.recurrence!!)}" else "",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

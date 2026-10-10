@@ -6,11 +6,11 @@
 
 ## 下载与安装
 
-[下载最新 Release](https://github.com/Nichinichisou0706/Qingban/releases/latest) · [0.4.5 安装包](https://github.com/Nichinichisou0706/Qingban/releases/download/v0.4.5/Qingban-0.4.5-release.apk)
+[下载最新 Release](https://github.com/Nichinichisou0706/Qingban/releases/latest) · [0.5.0 安装包](https://github.com/Nichinichisou0706/Qingban/releases/download/v0.5.0/Qingban-0.5.0-release.apk)
 
-下载 `Qingban-0.4.5-release.apk`，在手机上允许安装并打开。已有同签名正式版可覆盖升级；升级会保留原有数据。Release 同时提供 `SHA256SUMS.txt`，用于核对下载文件。
+下载 `Qingban-0.5.0-release.apk`，在手机上允许安装并打开。已有同签名正式版可覆盖升级；升级会保留原有数据。Release 同时提供 `SHA256SUMS.txt`，用于核对下载文件。
 
-通知、精确闹钟、锁屏响铃和悬浮窗权限在“仪表盘 → 权限与桌面”中设置。HyperOS 的自启动和省电限制需要在系统设置中调整。
+通知、精确闹钟、锁屏响铃和悬浮窗权限在“我的 → 权限与桌面”中设置。HyperOS 的自启动和省电限制需要在系统设置中调整。
 
 ## 界面预览
 

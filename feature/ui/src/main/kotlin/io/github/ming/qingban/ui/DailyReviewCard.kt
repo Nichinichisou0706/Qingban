@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
             result?.takeIf { it.status=="error" }?.let { Text(it.message,color=MaterialTheme.colorScheme.error) }
         } },confirmButton={ Button(onClick={ scope.launch { busy=true; result=deps.services.review.approve(p.id,selected); busy=false; if(result?.status!="error") open=false } },enabled=!busy && selected.isNotEmpty()) { Text(if(busy) "保存中" else "同意并调整") } },dismissButton={ TextButton(onClick={ open=false },enabled=!busy) { Text("再想想") } })
     }
-    result?.takeIf { it.status in setOf("ok","partial") }?.let { saved -> Card { Column(Modifier.padding(12.dp)) {
+    result?.takeIf { it.status in setOf("ok","partial") }?.let { saved -> Card(colors=qCardColors(),border=qCardBorder()) { Column(Modifier.padding(12.dp)) {
         Text(saved.message+if(saved.status=="partial") "，部分提醒需检查权限" else "，日终安排已调整")
         Row { TextButton(onClick={ scope.launch { val undone=deps.services.undo(saved.changeId); result=undone.takeIf { it.status=="error" } } }) { Text("撤销这次调整") }; TextButton(onClick={ result=null }) { Text("知道了") } }
     } } }

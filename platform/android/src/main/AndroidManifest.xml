@@ -17,7 +17,7 @@
         <receiver android:name="io.github.ming.qingban.platform.FocusReceiver" android:exported="false" />
         <receiver android:name="io.github.ming.qingban.platform.AlarmReceiver" android:exported="false" />
         <receiver android:name="io.github.ming.qingban.platform.RestoreReceiver" android:exported="true">
-            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/><action android:name="android.intent.action.TIME_SET"/><action android:name="android.intent.action.TIMEZONE_CHANGED"/><action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"/></intent-filter>
         </receiver>
         <service android:name="io.github.ming.qingban.platform.RingingService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <service android:name="io.github.ming.qingban.platform.FocusTimerService" android:exported="false" android:foregroundServiceType="specialUse">

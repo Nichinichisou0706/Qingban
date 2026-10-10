@@ -71,7 +71,7 @@ private val AttachmentSaver=Saver<KnowledgeAttachment?,String>(save={ it?.let { 
         item { OutlinedTextField(query,{ query=it },Modifier.fillMaxWidth(),label={ Text("搜索资料片段") }); TextButton(onClick={ scope.launch { hits=deps.services.knowledge.search(query,false,true) } }) { Text("检索（含历史资料）") }; hits.forEach { hit -> Card(Modifier.fillMaxWidth().padding(vertical=4.dp)) { Column(Modifier.padding(12.dp)) { Text("${hit.title} · v${hit.version}"); Text(hit.excerpt) } } } }
         if(sources.isEmpty()) item { EmptyCard(emptyTitle,emptyHint,::startTextDraft) }
         items(sources, key = { it.id }) { source ->
-            Card(Modifier.fillMaxWidth().clickable { reading = source }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Card(Modifier.fillMaxWidth().clickable { reading = source }, colors=qCardColors(),border=qCardBorder()) {
                 Column(Modifier.padding(18.dp)) {
                     Row { Icon(Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary); Text(source.title, Modifier.weight(1f).padding(start = 10.dp), fontWeight = FontWeight.SemiBold); IconButton(onClick = { deleting = source }, Modifier.size(44.dp)) { Icon(Icons.Default.DeleteOutline, "删除资料") } }
                     Text(source.text.take(100), maxLines = 3, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
@@ -122,7 +122,7 @@ private val AttachmentSaver=Saver<KnowledgeAttachment?,String>(save={ it?.let { 
             Text("观察到规律后会先问你，确认后才用于默认建议。", fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
         } } }
         operationError?.let { message -> item { Text(message,color=MaterialTheme.colorScheme.error) } }
-        item { Card { Column(Modifier.padding(16.dp)) {
+        item { Card(colors=qCardColors(),border=qCardBorder()) { Column(Modifier.padding(16.dp)) {
             Row { Text("使用已确认的习惯",Modifier.weight(1f)); Switch(useLearned,{ vm.useLearned(it) }) }
             Row { Text("主动询问习惯（每天最多一次）",Modifier.weight(1f)); Switch(proactive,{ vm.proactive(it) }) }
             Text("近 14 天的时间选择：" + statistics.entries.joinToString("、") { "${periodLabel(it.key)} ${it.value} 次" }.ifBlank { "暂无观察" },fontSize=12.sp)
@@ -134,7 +134,7 @@ private val AttachmentSaver=Saver<KnowledgeAttachment?,String>(save={ it?.let { 
         } } }
         item { SectionTitle("已确认的偏好", "随时修改或忘记", trailing = { IconButton(onClick = { key = ""; value = ""; scoped = ""; until=""; sourceId=null; editing = true }) { Icon(Icons.Default.Add, "添加偏好") } }) }
         if(prefs.isEmpty()) item { EmptyCard(emptyTitle,emptyHint) { editing = true } }
-        items(prefs, key = { "${it.key}:${it.scope}" }) { pref -> Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) { Column(Modifier.padding(18.dp)) {
+        items(prefs, key = { "${it.key}:${it.scope}" }) { pref -> Card(Modifier.fillMaxWidth(), colors=qCardColors(),border=qCardBorder()) { Column(Modifier.padding(18.dp)) {
             Row { Text(preferenceLabel(pref), Modifier.weight(1f), fontWeight = FontWeight.Medium); IconButton(onClick = { key = pref.key; value = pref.value; scoped = pref.scope; until=pref.validUntil.orEmpty(); sourceId=pref.sourceId; editing = true }, Modifier.size(28.dp)) { Icon(Icons.Default.Edit, "编辑偏好") }; IconButton(onClick = { vm.delete(pref) }, Modifier.size(28.dp)) { Icon(Icons.Default.DeleteOutline, "忘记偏好") } }
             Text(if(pref.value in setOf("morning", "afternoon", "evening")) periodLabel(pref.value) else pref.value, Modifier.padding(top = 5.dp))
             Text(pref.source, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))

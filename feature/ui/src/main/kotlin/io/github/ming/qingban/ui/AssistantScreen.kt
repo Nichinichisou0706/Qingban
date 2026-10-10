@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
@@ -77,8 +78,9 @@ import io.github.ming.qingban.domain.HabitCandidate
             item { DailyReviewCard(deps) }
             itemsIndexed(session.history) { index, line ->
                 val user = line.role == "user"
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = if(user) Arrangement.End else Arrangement.Start) {
-                    Card(Modifier.widthIn(max = 330.dp), shape = RoundedCornerShape(if(user) 20.dp else 8.dp, 20.dp, 20.dp, 20.dp), colors = CardDefaults.cardColors(containerColor = if(user) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = if(user) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.Top) {
+                    if(!user) androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(R.drawable.gpt_icon), null, Modifier.padding(end = 8.dp).size(30.dp).clip(androidx.compose.foundation.shape.CircleShape))
+                    Surface(Modifier.widthIn(max = 310.dp), shape = RoundedCornerShape(if(user) 20.dp else 6.dp, if(user) 6.dp else 20.dp, 20.dp, 20.dp), color = if(user) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface, border = if(user) null else androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                         Column(Modifier.padding(15.dp)) {
                             SelectionContainer { Text(line.text,style=MaterialTheme.typography.bodyLarge) }
                             if(line.sources.isNotEmpty()) Text("参考：${line.sources.joinToString("、")}", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(top = 7.dp))
@@ -100,7 +102,7 @@ import io.github.ming.qingban.domain.HabitCandidate
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { runCatching { speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"zh-CN").putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,true).putExtra(RecognizerIntent.EXTRA_PROMPT,inputHint)) }.onFailure { voiceMessage = "手机未提供语音识别服务，可以继续输入文字" } }, enabled = !busy) { Icon(androidx.compose.material.icons.Icons.Default.Mic,"语音输入") }
-            OutlinedTextField(input, { input = it.take(8000) }, Modifier.weight(1f), placeholder = { Text(inputHint,maxLines=1,overflow=TextOverflow.Ellipsis) }, shape = RoundedCornerShape(22.dp), maxLines = 4)
+            OutlinedTextField(input, { input = it.take(8000) }, Modifier.weight(1f), placeholder = { Text(inputHint,maxLines=1,overflow=TextOverflow.Ellipsis) }, shape = RoundedCornerShape(24.dp), maxLines = 4, colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = MaterialTheme.colorScheme.surface, focusedContainerColor = MaterialTheme.colorScheme.surface, unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant))
             Spacer(Modifier.width(8.dp))
             FilledIconButton(onClick = { if(input.isNotBlank()) { vm.send(input); input = ""; voiceMessage=null; keyboard?.hide() } }, enabled = input.isNotBlank() && !busy) { Icon(Icons.AutoMirrored.Filled.Send, "发送") }
         }

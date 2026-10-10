@@ -76,7 +76,7 @@ import java.util.UUID
                 trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Icon(Icons.Default.Close, "清除搜索") } })
         }
         if (visible.isEmpty()) item {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Card(Modifier.fillMaxWidth(), colors=qCardColors(),border=qCardBorder()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(if (profiles.isEmpty()) "连接你的第一个模型" else "没有匹配的配置", fontWeight = FontWeight.Medium)
                     Text(if (profiles.isEmpty()) "选供应商，填入密钥，自动寻找可用模型。也支持自己的兼容接口。" else "试试其他关键词。", lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -117,8 +117,8 @@ import java.util.UUID
 @Composable private fun ModelProfileRow(profile: ModelProfile, active: Boolean, enabled: Boolean, onActivate: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
-        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else qCardBorder(),
+        colors=qCardColors()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {

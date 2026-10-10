@@ -50,7 +50,7 @@ internal val RecurrenceSaver = Saver<RecurrenceSpec, String>(
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 when(page) {
                     "list" -> {
-                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Card(colors=qCardColors(),border=qCardBorder()) {
                             RepeatRow(if(isAlarm) "只响一次" else "不重复", selected = !enabled) { enabled = false; error = null }
                             RepeatRow("每天", selected = enabled && draft.frequency == RecurrenceRules.WEEKLY && draft.weekdays.size == 7) { weekly((1..7).toSet()) }
                             RepeatRow("法定工作日", if(isAlarm) "智能跳过节假日，调休上班日照常响铃" else "按法定工作日出现，包含调休上班日", enabled && draft.frequency == RecurrenceRules.WORKDAY) { calendar(RecurrenceRules.WORKDAY) }
@@ -58,7 +58,7 @@ internal val RecurrenceSaver = Saver<RecurrenceSpec, String>(
                             RepeatRow("周一至周五", selected = enabled && draft.frequency == RecurrenceRules.WEEKLY && draft.weekdays == setOf(1,2,3,4,5)) { weekly(setOf(1,2,3,4,5)) }
                             RepeatRow("周末", selected = enabled && draft.frequency == RecurrenceRules.WEEKLY && draft.weekdays == setOf(6,7), divider = false) { weekly(setOf(6,7)) }
                         }
-                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                        Card(colors=qCardColors(),border=qCardBorder()) {
                             RepeatRow("轮班制", if(enabled && draft.frequency == RecurrenceRules.SHIFT) RecurrenceRules.label(draft) else "连续上班与休息，按周期轮换", enabled && draft.frequency == RecurrenceRules.SHIFT, arrow = true) {
                                 if(draft.frequency != RecurrenceRules.SHIFT) draft = RecurrenceSpec(frequency = RecurrenceRules.SHIFT, startDate = draft.startDate, endDate = draft.endDate, workDays = 2, restDays = 2, cycleAnchor = draft.startDate)
                                 enabled = true; page = "shift"; error = null
@@ -69,7 +69,7 @@ internal val RecurrenceSaver = Saver<RecurrenceSpec, String>(
                             }
                         }
                         if(enabled) {
-                            if(showDateSettings) Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                            if(showDateSettings) Card(colors=qCardColors(),border=qCardBorder()) {
                                 RepeatRow("生效及结束日期", "从 ${draft.startDate} 起 · ${draft.endDate?.let { "至 $it" } ?: "不设结束日期"}", arrow = true, divider = false) { page = "dates" }
                             }
                             if(RecurrenceRules.usesHolidayCalendar(draft)) Text("${MainlandHolidayCalendar.COVERAGE}，依据国务院放假调休安排。未覆盖的年份需更新日历后才能排程。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

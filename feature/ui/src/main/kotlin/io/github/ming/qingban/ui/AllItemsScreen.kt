@@ -53,7 +53,7 @@ import io.github.ming.qingban.domain.*
     editing?.let { item -> ItemEditor(item.kind,item,null,deps.platform,items,{ editingId=null },{ draft,scope,date -> vm.save(draft,item,scope,date) },{ scope,date -> vm.cancel(item,scope,date) },onSplit={ vm.split(item,it) }) }
 }
 @Composable private fun HistoryItemCard(item: PlanItem,onEdit: ()->Unit,onRestore: ()->Unit) {
-    Card(Modifier.fillMaxWidth().clickable(onClick=onEdit),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface)) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+    Card(Modifier.fillMaxWidth().clickable(onClick=onEdit),colors=qCardColors(),border=qCardBorder()) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
         Text(item.title,style=MaterialTheme.typography.titleMedium)
         SoftTag(when(item.status) { ItemStatus.OPEN -> "待办"; ItemStatus.COMPLETED -> "已完成"; ItemStatus.CANCELLED -> "已取消" },item.status==ItemStatus.CANCELLED)
         val schedule=item.schedule

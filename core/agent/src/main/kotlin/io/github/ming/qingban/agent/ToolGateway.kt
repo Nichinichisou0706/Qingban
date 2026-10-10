@@ -21,8 +21,9 @@ class ToolGateway(private val services: Services) {
         val a = call.args
         features.execute(call,requestKey,userText,remote)?.let { return it }
         if(!approvedProposal) {
+            if(call.tool in setOf("cancel_item","update_item","delete_item")) require(!NEGATED_CHANGE.containsMatchIn(userText)) { "用户没有要求修改或取消事项" }
             if(call.tool == "cancel_item") require(Regex("取消|删除|删掉|关闭|不要这|停止").containsMatchIn(userText)) { "当前请求没有授权取消事项" }
-            if(call.tool == "update_item") require(Regex("改|挪|调整|换|推迟|提前|完成|做完|办完|搞定|恢复|启用|开始|安排").containsMatchIn(userText)) { "当前请求没有授权修改事项" }
+            if(call.tool == "update_item") require(Regex("改|挪|调整|换|推迟|提前|完成|做完|办完|搞定|恢复|启用|开始|重新安排|另外安排|安排到|安排在").containsMatchIn(userText)) { "当前请求没有授权修改事项" }
             if(call.tool == "create_item") require(!Regex("有什么|有哪些|有课吗|什么时候|查询|查一下|搜一下").containsMatchIn(userText) || Regex("添加|记下|记录|安排|创建|设.*闹钟").containsMatchIn(userText)) { "查询不能自行新增事项" }
         }
         when(call.tool) {
@@ -78,7 +79,7 @@ class ToolGateway(private val services: Services) {
             }
             "cancel_item" -> {
                 a.allowed("item_id", "expected_version", "scope", "occurrence_date")
-                outcome(services.items.update(a.required("item_id"), a.requiredInt("expected_version"), ItemPatch(status = ItemStatus.CANCELLED), scope(a.required("scope")), a.string("occurrence_date"), requestKey))
+                stage("取消所选事项并停止相关提醒，可撤销；请核对取消范围",listOf(ProposedAction("cancel_item",a)))
             }
             "undo_change" -> { a.allowed("change_id"); outcome(services.undo(a.string("change_id"), requestKey)) }
             "write_memory" -> {
@@ -212,3 +213,5 @@ internal fun JsonObject.allowed(vararg keys: String) { require(this.keys.all { i
 internal fun JsonObject.string(key: String): String? = get(key)?.takeUnless { it == JsonNull }?.jsonPrimitive?.also { require(it.isString) }?.content
 internal fun JsonObject.required(key: String): String = string(key)?.takeIf { it.isNotBlank() } ?: error("缺少 $key")
 internal fun JsonObject.requiredInt(key: String) = get(key)?.jsonPrimitive?.int ?: error("缺少整数 $key")
+/** “别取消”“不要改”“先不用删”之类的否定说法不能作为修改授权。 */
+internal val NEGATED_CHANGE = Regex("(别|不要|不用|先别|无需|不必|没必要|不想)(帮我|给我|再)?(取消|删除|删掉|移除|关闭|停止|改|挪|调整|推迟|提前)")

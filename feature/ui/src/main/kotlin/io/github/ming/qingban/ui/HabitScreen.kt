@@ -10,6 +10,10 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircleOutline
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.ming.qingban.domain.*
@@ -20,9 +24,18 @@ import java.time.LocalDate
     val state by deps.services.habits.state.collectAsStateWithLifecycle()
     val today=LocalDate.now(deps.services.clock)
     val active=state.habits.filter { HabitRules.scheduled(it,today) }
+    val done=active.count { HabitRules.progress(it,state,today).todayDone }
     val scope=rememberCoroutineScope()
-    OutlinedButton(onClick={ scope.launch { deps.services.ui.open("habits") } },modifier=Modifier.fillMaxWidth()) {
-        Text(if(active.isEmpty()) "养一个小习惯" else "小习惯 · 今天 ${active.count { HabitRules.progress(it,state,today).todayDone }}/${active.size} 已打卡")
+    QCard(Modifier.fillMaxWidth(),onClick={ scope.launch { deps.services.ui.open("habits") } }) {
+        Row(Modifier.padding(horizontal=QSpace.l,vertical=QSpace.m),verticalAlignment=Alignment.CenterVertically) {
+            IconBadge(Icons.Default.CheckCircleOutline,lavender=true)
+            Column(Modifier.weight(1f).padding(start=QSpace.m)) {
+                Text(if(active.isEmpty()) "养一个小习惯" else "小习惯",style=MaterialTheme.typography.titleSmall)
+                Text(if(active.isEmpty()) "本地打卡与温和督促" else "今天 $done/${active.size} 已打卡",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if(active.isNotEmpty()) LinearProgressIndicator(progress={ done.toFloat()/active.size },modifier=Modifier.width(64.dp).height(6.dp).clip(androidx.compose.foundation.shape.CircleShape),color=MaterialTheme.colorScheme.secondary,trackColor=MaterialTheme.colorScheme.secondaryContainer,drawStopIndicator={})
+            Icon(Icons.Default.ChevronRight,null,tint=MaterialTheme.colorScheme.outline,modifier=Modifier.padding(start=QSpace.s))
+        }
     }
 }
 @OptIn(ExperimentalLayoutApi::class)
@@ -43,7 +56,7 @@ import java.time.LocalDate
             Text("每天一点点",style=MaterialTheme.typography.headlineSmall)
             Text("打卡、提醒和统计都在本机运行。漏一天也可以继续，近 7 天可以补记。",style=MaterialTheme.typography.bodySmall)
         } } }
-        item { Card { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+        item { Card(colors=qCardColors(),border=qCardBorder()) { Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
             Row { Text("温和督促",Modifier.weight(1f),style=MaterialTheme.typography.titleMedium); Switch(state.gentle,{ enabled -> scope.launch { runCatching { service.gentle(enabled) }.onFailure { error=it.message } } }) }
             Text("每天最多提醒 2 次，夜间不打扰。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick={ showGentleDetails=!showGentleDetails }) { Text(if(showGentleDetails) "收起提醒规则" else "查看提醒规则",style=MaterialTheme.typography.labelSmall) }
@@ -54,7 +67,7 @@ import java.time.LocalDate
         if(state.habits.none { it.enabled || showPaused }) item { Text("从一件很小的事开始，比如阅读、喝水或拉伸。",style=MaterialTheme.typography.bodyMedium) }
         items(state.habits.filter { it.enabled || showPaused },key={ it.id }) { h ->
             val progress=HabitRules.progress(h,state,today)
-            Card { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+            Card(colors=qCardColors(),border=qCardBorder()) { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                 Row { Text(h.title,Modifier.weight(1f),style=MaterialTheme.typography.titleMedium); TextButton(onClick={ editingId=h.id; editor=true }) { Text("编辑习惯") } }
                 Text("近 7 天 ${progress.done}/${progress.planned} · 连续 ${progress.streak} 个计划日${if(!h.enabled) " · 已暂停" else ""}",style=MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) { DateWindows.centered(today).forEach { day ->
