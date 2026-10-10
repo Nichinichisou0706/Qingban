@@ -1,19 +1,22 @@
 package io.github.ming.qingban.ui
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.*
 import io.github.ming.qingban.domain.ItemKind
+import io.github.ming.qingban.domain.CompanionMenuLayout
 import kotlin.math.roundToInt
 
 @Composable fun AssistantQuickControl(expanded: Boolean, onToggle: () -> Unit, onChat: () -> Unit, onCreate: (ItemKind) -> Unit, onFocus: () -> Unit, onCalendar: () -> Unit) {
@@ -21,24 +24,31 @@ import kotlin.math.roundToInt
     var y by rememberSaveable { mutableFloatStateOf(0f) }
     val density=LocalDensity.current
     val screen=LocalConfiguration.current
-    val minX=with(density) { -(screen.screenWidthDp.dp-(if(expanded) 264 else 80).dp-32.dp).toPx().coerceAtLeast(0f) }
-    val minY=with(density) { -(screen.screenHeightDp.dp-400.dp).toPx().coerceAtLeast(0f) }
-    LaunchedEffect(expanded,screen.screenWidthDp,screen.screenHeightDp) { x=x.coerceIn(minX,0f); y=y.coerceIn(minY,0f) }
-    Column(Modifier.offset { IntOffset(x.roundToInt(),y.roundToInt()) }.pointerInput(minX,minY) {
-        detectDragGestures { change,drag -> change.consume(); x=(x+drag.x).coerceIn(minX,0f); y=(y+drag.y).coerceIn(minY,0f) }
-    },horizontalAlignment=Alignment.End,verticalArrangement=Arrangement.spacedBy(8.dp)) {
-        AnimatedVisibility(expanded) {
-            Card(Modifier.width(264.dp),colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface),elevation=CardDefaults.cardElevation(5.dp)) {
-                Column(Modifier.padding(10.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                    Text("铭哥，这次想做什么？",style=MaterialTheme.typography.titleSmall)
-                    TextButton(onClick=onChat,modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.ChatBubbleOutline,null); Text(" 和 GPT 娘说一句") }
-                    Row { TextButton(onClick={ onCreate(ItemKind.TASK) },modifier=Modifier.weight(1f)) { Text("＋ 事项") }; TextButton(onClick={ onCreate(ItemKind.NOTE) },modifier=Modifier.weight(1f)) { Text("✎ 备忘") } }
-                    Row { TextButton(onClick={ onCreate(ItemKind.ALARM) },modifier=Modifier.weight(1f)) { Icon(Icons.Default.Alarm,null,Modifier.size(17.dp)); Text(" 闹钟") }; TextButton(onClick=onFocus,modifier=Modifier.weight(1f)) { Icon(Icons.Default.Timer,null,Modifier.size(17.dp)); Text(" 番茄钟") } }
-                    TextButton(onClick=onCalendar,modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.CalendarMonth,null,Modifier.size(17.dp)); Text(" 看日历") }
-                    Text("拖动入口可左右、上下移动",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+    val width=if(expanded) CompanionMenuLayout.WIDTH else 56
+    val height=if(expanded) CompanionMenuLayout.HEIGHT else 56
+    val minX=with(density) { -(screen.screenWidthDp.dp-width.dp-32.dp).toPx().coerceAtLeast(0f) }
+    val minY=with(density) { -(screen.screenHeightDp.dp-height.dp-180.dp).toPx().coerceAtLeast(0f) }
+    val inwardRight=x < with(density) { -(screen.screenWidthDp.dp/2-56.dp).toPx() }
+    val shownX=x.coerceIn(minX,0f)
+    val shownY=y.coerceIn(minY,0f)
+    val currentToggle by rememberUpdatedState(onToggle)
+    val alpha by animateFloatAsState(if(expanded) 1f else .96f,label="shortcut-alpha")
+    Box(Modifier.offset { IntOffset(shownX.roundToInt(),shownY.roundToInt()) }.size(width.dp,height.dp).graphicsLayer { this.alpha=alpha }) {
+        if(expanded) {
+            val actions=listOf<Pair<String,()->Unit>>(
+                "对话" to onChat,"事项" to { onCreate(ItemKind.TASK) },"备忘" to { onCreate(ItemKind.NOTE) },
+                "日历" to onCalendar,"闹钟" to { onCreate(ItemKind.ALARM) },"专注" to onFocus,
+            )
+            CompanionMenuLayout.points(actions.size,inwardRight).forEachIndexed { index,point ->
+                val action=actions[index]
+                FilledTonalButton(onClick=action.second,modifier=Modifier.offset((point.x-24).dp,(point.y-24).dp).size(48.dp),shape=CircleShape,contentPadding=PaddingValues(0.dp),colors=ButtonDefaults.filledTonalButtonColors(containerColor=MaterialTheme.colorScheme.primaryContainer)) { Text(action.first,style=MaterialTheme.typography.labelMedium) }
             }
         }
-        FloatingActionButton(onClick=onToggle,containerColor=MaterialTheme.colorScheme.primaryContainer) { Icon(if(expanded) Icons.Default.Close else Icons.Default.AutoAwesome,"展开或收起助手快捷功能") }
+        val drag=Modifier.pointerInput(minX,minY) {
+            detectDragGestures { change,amount -> change.consume(); x=(x+amount.x).coerceIn(minX,0f); y=(y+amount.y).coerceIn(minY,0f) }
+        }
+        FloatingActionButton(onClick={ currentToggle() },modifier=(if(expanded) Modifier.offset((CompanionMenuLayout.portraitLeft(inwardRight)-5).dp,104.dp) else Modifier).size(56.dp).then(drag),shape=CircleShape,containerColor=MaterialTheme.colorScheme.primaryContainer,elevation=FloatingActionButtonDefaults.elevation(2.dp)) {
+            Icon(if(expanded) Icons.Default.Close else Icons.Default.AutoAwesome,"展开或收起助手快捷功能")
+        }
     }
 }

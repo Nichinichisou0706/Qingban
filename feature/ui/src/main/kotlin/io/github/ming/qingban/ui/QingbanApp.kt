@@ -62,7 +62,7 @@ import androidx.compose.ui.Alignment
                 else IconButton(onClick=::openDashboard) { Icon(Icons.Default.SpaceDashboard,"打开仪表盘",tint=MaterialTheme.colorScheme.primary) }
             }, actions = { if((assistant || auxiliary!=null) && auxiliary!="仪表盘") IconButton(onClick=::openDashboard) { Icon(Icons.Default.SpaceDashboard,"打开仪表盘") } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
         }, bottomBar = {
-            if(!immersive && !assistant && auxiliary == null) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) { titles.forEachIndexed { index, title -> NavigationBarItem(page == index, { page = index; calendarDate=null }, icon = { Icon(icons[index], null) }, label = { Text(title) }) } }
+            if(!immersive && !assistant && auxiliary == null) NavigationBar(containerColor = MaterialTheme.colorScheme.surface) { titles.forEachIndexed { index, title -> NavigationBarItem(page == index, { page = index; calendarDate=null; calendarView=null; hub=false }, icon = { Icon(icons[index], null) }, label = { Text(title) }) } }
         }, floatingActionButton = {
             if(!assistant && auxiliary == null && page!=4) AssistantQuickControl(hub,{ hub=!hub },{ openAssistant() },{ kind -> hub=false; quickKind=kind },{ hub=false; focusTaskId=null; page=4 },{ hub=false; page=1 })
         }) { padding -> Box(Modifier.padding(padding).fillMaxSize()) {
@@ -76,7 +76,7 @@ import androidx.compose.ui.Alignment
                 "权限与桌面" -> PlatformSettingsScreen(deps)
                 "关于与隐私" -> AboutScreen(deps.platform)
                 "番茄钟" -> FocusScreen(deps)
-                else -> if(assistant) AssistantScreen(deps,if(consumedSharedRequest!=assistantRequest) sharedText else "",assistantRequest,onInitialInputConsumed={ consumedSharedRequest=assistantRequest }) else if(page==4) FocusScreen(deps,focusTaskId) else TaskScreen(page, deps, { hub=!hub }, { auxiliary = "权限与桌面"; returnToDashboard=false },calendarDate?.let(LocalDate::parse),calendarView) { task -> focusTaskId=task?.id; page=4; hub=false }
+                else -> if(assistant) AssistantScreen(deps,if(consumedSharedRequest!=assistantRequest) sharedText else "",assistantRequest,onInitialInputConsumed={ consumedSharedRequest=assistantRequest }) else if(page==4) FocusScreen(deps,focusTaskId) else key(page) { TaskScreen(page, deps, { openAssistant() }, { auxiliary = "权限与桌面"; returnToDashboard=false },calendarDate?.let(LocalDate::parse),calendarView) { task -> focusTaskId=task?.id; page=4; hub=false } }
             }
         } }
         quickKind?.let { kind -> ItemEditor(kind,null,LocalDate.now(deps.services.clock).takeIf { kind!=ItemKind.NOTE },deps.platform,all,{ quickKind=null },{ draft,_,_ -> scope.launch { val result=deps.services.items.create(draft); android.widget.Toast.makeText(context,result.message,android.widget.Toast.LENGTH_LONG).show(); if(result.status!="error") quickKind=null } },{ _,_ -> quickKind=null },onSplit={ drafts -> scope.launch {

@@ -3,6 +3,7 @@ package io.github.ming.qingban.ui
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -12,6 +13,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,6 +35,8 @@ import io.github.ming.qingban.domain.HabitCandidate
     val busy by vm.busy.collectAsStateWithLifecycle()
     var input by rememberSaveable { mutableStateOf("") }
     var voiceMessage by remember { mutableStateOf<String?>(null) }
+    var clearing by rememberSaveable { mutableStateOf(false) }
+    val keyboard=LocalSoftwareKeyboardController.current
     val habit by vm.habit.collectAsStateWithLifecycle()
     LaunchedEffect(inputVersion) { if(initialInput.isNotBlank()) { input = initialInput; onInitialInputConsumed() } }
     val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -50,15 +55,15 @@ import io.github.ming.qingban.domain.HabitCandidate
     val inputHint=rotatingCopy("assistant.input",CopyCatalog.assistantInput(mood))
     val busyHint=rotatingCopy("assistant.busy",CopyCatalog.busy)
     val examples=listOf(rotatingCopy("assistant.example.task",CopyCatalog.taskExamples),rotatingCopy("assistant.example.alarm",CopyCatalog.alarmExamples),rotatingCopy("assistant.example.note",CopyCatalog.noteExamples))
-    LaunchedEffect(session.history.size, busy) { if(session.history.isNotEmpty()) scroll.animateScrollToItem(session.history.size) }
+    LaunchedEffect(scroll) { snapshotFlow { scroll.layoutInfo.totalItemsCount }.collect { count -> if(count>0) scroll.animateScrollToItem(count-1) } }
     Column(Modifier.fillMaxSize().imePadding()) {
         LazyColumn(Modifier.weight(1f), state = scroll, contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GptPet(thinking = busy, waiting = waiting, modifier = Modifier.width(100.dp).height(145.dp))
+                    GptPet(thinking = busy, waiting = waiting, modifier = Modifier.width(if(session.history.isEmpty()) 86.dp else 56.dp).height(if(session.history.isEmpty()) 120.dp else 80.dp))
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(greeting, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                        Text(support, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                        Text(greeting,style=MaterialTheme.typography.titleLarge)
+                        if(session.history.isEmpty()) Text(support,style=MaterialTheme.typography.bodySmall,color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
                         SoftTag(if(deps.platform.modelSummary()["has_key"] == "true") "模型助手" else "离线记录模式")
                     }
                 }
@@ -75,7 +80,7 @@ import io.github.ming.qingban.domain.HabitCandidate
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = if(user) Arrangement.End else Arrangement.Start) {
                     Card(Modifier.widthIn(max = 330.dp), shape = RoundedCornerShape(if(user) 20.dp else 8.dp, 20.dp, 20.dp, 20.dp), colors = CardDefaults.cardColors(containerColor = if(user) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)) {
                         Column(Modifier.padding(15.dp)) {
-                            Text(line.text, fontSize = 15.sp, lineHeight = 23.sp)
+                            SelectionContainer { Text(line.text,style=MaterialTheme.typography.bodyLarge) }
                             if(line.sources.isNotEmpty()) Text("参考：${line.sources.joinToString("、")}", fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(top = 7.dp))
                             if(index == session.history.lastIndex && !busy) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { line.options.forEach { option -> AssistChip(onClick = {
                                 if(option == "查看并确认方案") coroutine.launch { proposal = vm.coordinator.proposal() } else vm.send(option)
@@ -87,7 +92,7 @@ import io.github.ming.qingban.domain.HabitCandidate
             }
             if(busy) item { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Text(busyHint, Modifier.weight(1f).padding(start = 10.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp); TextButton(onClick=vm::stop) { Text("停止") } } }
             if(!busy) {
-                session.activeTurn?.let { turn -> item { OutlinedButton(onClick={ vm.retry() }) { Text("继续未完成的请求：${turn.request.take(36)}") } } }
+                session.activeTurn?.let { turn -> item { OutlinedButton(onClick={ vm.retry() },modifier=Modifier.fillMaxWidth()) { Text("继续：${turn.request.take(36)}",maxLines=2,overflow=TextOverflow.Ellipsis) } } }
                 session.interruptedTurns.forEachIndexed { index,turn -> item { TextButton(onClick={ vm.retry(index) }) { Text("继续：${turn.request.take(36)}") } } }
             }
             if(session.pausedLocal.isNotEmpty()) item { Text("还可以继续安排", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); FlowRow { session.pausedLocal.forEachIndexed { index, draft -> AssistChip(onClick = { vm.resumeLocal(index) }, enabled = !busy, label = { Text(draft.title) }) } } }
@@ -95,16 +100,17 @@ import io.github.ming.qingban.domain.HabitCandidate
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { runCatching { speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM).putExtra(RecognizerIntent.EXTRA_LANGUAGE,"zh-CN").putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE,true).putExtra(RecognizerIntent.EXTRA_PROMPT,inputHint)) }.onFailure { voiceMessage = "手机未提供语音识别服务，可以继续输入文字" } }, enabled = !busy) { Icon(androidx.compose.material.icons.Icons.Default.Mic,"语音输入") }
-            OutlinedTextField(input, { input = it }, Modifier.weight(1f), placeholder = { Text(inputHint) }, shape = RoundedCornerShape(22.dp), maxLines = 4)
+            OutlinedTextField(input, { input = it.take(8000) }, Modifier.weight(1f), placeholder = { Text(inputHint,maxLines=1,overflow=TextOverflow.Ellipsis) }, shape = RoundedCornerShape(22.dp), maxLines = 4)
             Spacer(Modifier.width(8.dp))
-            FilledIconButton(onClick = { if(input.isNotBlank()) { vm.send(input); input = "" } }, enabled = input.isNotBlank() && !busy) { Icon(Icons.AutoMirrored.Filled.Send, "发送") }
+            FilledIconButton(onClick = { if(input.isNotBlank()) { vm.send(input); input = ""; voiceMessage=null; keyboard?.hide() } }, enabled = input.isNotBlank() && !busy) { Icon(Icons.AutoMirrored.Filled.Send, "发送") }
         }
         voiceMessage?.let { Text(it,fontSize=11.sp,modifier=Modifier.padding(horizontal=20.dp),color=MaterialTheme.colorScheme.onSurfaceVariant) }
-        TextButton(onClick = vm::clear, enabled = !busy, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("清空当前对话", fontSize = 11.sp) }
+        if(session.history.isNotEmpty()) TextButton(onClick = { clearing=true }, enabled = !busy, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("清空当前对话",style=MaterialTheme.typography.labelSmall) }
     }
+    if(clearing) AlertDialog(onDismissRequest={ clearing=false },title={ Text("清空当前对话？") },text={ Text("已保存的事项和资料会保留，未完成的对话请求将移除。") },confirmButton={ TextButton(onClick={ vm.clear(); clearing=false },enabled=!busy) { Text("清空") } },dismissButton={ TextButton(onClick={ clearing=false }) { Text("保留") } })
     LaunchedEffect(proposal?.id) { proposal?.let { p -> proposalNames = deps.services.items.store.all().associate { it.id to it.title }; previewChanges=p.changes; previewSelected=p.changes.indices.toSet() } }
     proposal?.let { p -> AlertDialog(onDismissRequest = { proposal = null }, title = { Text("确认安排") }, text = { Column(Modifier.verticalScroll(rememberScrollState())) { Text(p.summary); previewChanges.forEachIndexed { index, action ->
-        Row { Checkbox(index in previewSelected,{ checked -> previewSelected=if(checked) previewSelected+index else previewSelected-index }); Text("${index+1}. ${describeChange(action, proposalNames)}", Modifier.padding(top = 10.dp)) }
+        Row { Checkbox(index in previewSelected,{ checked -> previewSelected=if(checked) previewSelected+index else previewSelected-index }); Text("${index+1}. ${describeChange(action, proposalNames)}", Modifier.weight(1f).padding(top = 10.dp)) }
         if(index in previewSelected && action.tool !in setOf("cancel_item","delete_item")) ProposalFields(action) { updated -> previewChanges=previewChanges.toMutableList().also { it[index]=updated } }
     } } }, confirmButton = { Button(onClick = { vm.approve(p.id,previewChanges.filterIndexed { i,_ -> i in previewSelected }); proposal = null },enabled=previewSelected.isNotEmpty()) { Text("按这个保存") } }, dismissButton = { TextButton(onClick = { proposal = null }) { Text("再想想") } }) }
 }

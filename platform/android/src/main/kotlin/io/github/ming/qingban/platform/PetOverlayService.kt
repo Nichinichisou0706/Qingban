@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import android.animation.ObjectAnimator
 import kotlinx.coroutines.*
+import io.github.ming.qingban.domain.CompanionMenuLayout
 
 class PetOverlayService : Service() {
     private val windows by lazy { getSystemService(WindowManager::class.java) }
@@ -30,6 +31,7 @@ class PetOverlayService : Service() {
     private val size=46
     private var compactX=0
     private var compactY=0
+    private var outwardRight=true
     private val density get()=resources.displayMetrics.density
     private fun dp(n: Float)=(n*density).toInt()
     private lateinit var layout: WindowManager.LayoutParams
@@ -53,9 +55,10 @@ class PetOverlayService : Service() {
     override fun onStartCommand(intent: Intent?,flags: Int,startId: Int): Int {
         if(intent?.action=="stop" || !Settings.canDrawOverlays(this)) { stopSelf(); return START_NOT_STICKY }
         if(intent?.action=="hide") { hiddenUntil=SystemClock.elapsedRealtime()+600_000; hide(); handler.postDelayed({ show() },600_000); return START_NOT_STICKY }
+        if(intent?.action=="refresh") { hide(); show(); return START_NOT_STICKY }
         createChannels(this)
         val stop=PendingIntent.getService(this,811,Intent(this,PetOverlayService::class.java).setAction("stop"),PendingIntent.FLAG_IMMUTABLE)
-        startForeground(811,NotificationCompat.Builder(this,PET_CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("GPT 娘陪伴已开启").setContentText("点击展开小轮盘；5 秒闲置淡化").addAction(0,"关闭桌宠",stop).setOngoing(true).build())
+        startForeground(811,NotificationCompat.Builder(this,PET_CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle("GPT 娘陪伴已开启").setContentText("点击展开快捷功能 · 5 秒闲置淡化").addAction(0,"关闭桌宠",stop).setOngoing(true).build())
         getSharedPreferences("pet_settings",MODE_PRIVATE).edit().putBoolean("running",true).apply()
         show()
         if(intent?.action=="bubble") { wake(); bubble?.apply { text=intent.getStringExtra("title")?.take(24); visibility=View.VISIBLE }; handler.postDelayed({ bubble?.visibility=View.GONE },5000) }
@@ -83,7 +86,7 @@ class PetOverlayService : Service() {
                     launch?.let(::startActivity)
                 }
             }
-        }; menu=radial; radial.visibility=View.GONE; root.addView(radial,FrameLayout.LayoutParams(dp(188f),dp(188f)))
+        }; menu=radial; radial.visibility=View.GONE; root.addView(radial,FrameLayout.LayoutParams(dp(CompanionMenuLayout.WIDTH.toFloat()),dp(CompanionMenuLayout.HEIGHT.toFloat())))
         val image=PetImageView(this).apply { setImageResource(dependencies.petDrawables[visual] ?: dependencies.petDrawable); scaleType=ImageView.ScaleType.FIT_CENTER; setOnClickListener { wake(); if(expanded) collapse() else expand() } }; portrait=image
         root.addView(image,FrameLayout.LayoutParams(layout.width,layout.height,Gravity.CENTER))
         bubble=TextView(this).apply { visibility=View.GONE; textSize=10f; setTextColor(android.graphics.Color.rgb(30,75,56)); setBackgroundColor(android.graphics.Color.rgb(221,243,231)); maxLines=2 }.also { root.addView(it,FrameLayout.LayoutParams(-1,-2,Gravity.TOP)) }
@@ -107,18 +110,20 @@ class PetOverlayService : Service() {
     }
     private fun resize(open: Boolean) {
         val root=pet ?: return
-        val centerX=layout.x+layout.width/2; val centerY=layout.y+layout.height/2
-        if(open) { compactX=layout.x; compactY=layout.y }
-        expanded=open; layout.width=dp(if(open) 188f else size.toFloat()); layout.height=dp(if(open) 188f else 76f)
-        layout.x=if(open) centerX-layout.width/2 else compactX; layout.y=if(open) centerY-layout.height/2 else compactY; clamp()
+        if(open) { compactX=layout.x; compactY=layout.y; outwardRight=layout.x+layout.width/2<resources.displayMetrics.widthPixels/2 }
+        expanded=open; layout.width=dp(if(open) CompanionMenuLayout.WIDTH.toFloat() else size.toFloat()); layout.height=dp(if(open) CompanionMenuLayout.HEIGHT.toFloat() else 76f)
+        val portraitLeft=CompanionMenuLayout.portraitLeft(outwardRight)
+        layout.x=if(open) compactX-dp(portraitLeft.toFloat()) else compactX; layout.y=if(open) compactY-dp(CompanionMenuLayout.PORTRAIT_TOP.toFloat()) else compactY; clamp()
+        menu?.arrange(outwardRight)
         menu?.visibility=if(open) View.VISIBLE else View.GONE
-        portrait?.layoutParams=FrameLayout.LayoutParams(dp(if(open) 46f else size.toFloat()),dp(if(open) 76f else 76f),Gravity.CENTER)
+        portrait?.layoutParams=FrameLayout.LayoutParams(dp(size.toFloat()),dp(76f),Gravity.TOP or Gravity.START).apply { if(open) { leftMargin=dp(portraitLeft.toFloat()); topMargin=dp(CompanionMenuLayout.PORTRAIT_TOP.toFloat()) } }
         windows.updateViewLayout(root,layout); startMotion(); describe()
+        if(open) menu?.apply { alpha=0f; scaleX=.94f; scaleY=.94f; animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(160).start() }
     }
     private fun expand()=resize(true)
     private fun collapse() { if(expanded) resize(false) }
     private fun clamp() { layout.x=layout.x.coerceIn(0,(resources.displayMetrics.widthPixels-layout.width).coerceAtLeast(0)); layout.y=layout.y.coerceIn(dp(24f),(resources.displayMetrics.heightPixels-layout.height-dp(30f)).coerceAtLeast(dp(24f))) }
-    private fun describe() { portrait?.contentDescription="GPT 娘，${if(expanded) "轮盘已展开" else "点击展开轮盘"}，${if(fading) "闲置淡化" else "已唤醒"}，拖动移动" }
+    private fun describe() { portrait?.contentDescription="GPT 娘，${if(expanded) "快捷功能已展开，点击收起" else "点击展开快捷功能"}，${if(fading) "闲置淡化" else "已唤醒"}，拖动移动" }
     private fun wake() { handler.removeCallbacks(idle); fading=false; pet?.animate()?.cancel(); pet?.alpha=baseAlpha; animation?.resume(); describe(); handler.postDelayed(idle,5000) }
     private fun startMotion() {
         animation?.cancel(); val image=portrait ?: return; image.translationY=0f; image.rotation=0f; image.scaleX=1f; image.scaleY=1f

@@ -9,7 +9,7 @@ android {
     defaultConfig {
         applicationId = "io.github.ming.qingban"
         minSdk = 26; targetSdk = 35
-        versionCode = 12; versionName = "0.4.5"
+        versionCode = 15; versionName = "0.4.8"
     }
     signingConfigs {
         if(releaseSecrets.isNotEmpty()) create("localRelease") {

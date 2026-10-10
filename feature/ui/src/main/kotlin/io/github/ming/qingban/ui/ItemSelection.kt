@@ -3,6 +3,9 @@ package io.github.ming.qingban.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -13,16 +16,17 @@ import io.github.ming.qingban.domain.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun ItemSelectionBar(active: Boolean, count: Int, total: Int, onStart: () -> Unit, onAll: () -> Unit, onClear: () -> Unit, onExit: () -> Unit, onDelete: () -> Unit, onUndo: () -> Unit) {
-    FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)) {
-        if(!active) TextButton(onClick=onStart,enabled=total>0) { Text("多选") }
-        else {
-            Text("已选 $count / $total",Modifier.align(Alignment.CenterVertically))
-            TextButton(onClick=onAll,enabled=total>0) { Text("全选") }
-            TextButton(onClick=onClear,enabled=count>0) { Text("全不选") }
-            TextButton(onClick=onDelete,enabled=count>0) { Text("删除 ($count)") }
-            TextButton(onClick=onExit) { Text("退出多选") }
+    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+        if(!active) {
+            TextButton(onClick=onStart,enabled=total>0) { Text("多选") }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick=onUndo) { Text("撤销") }
+        } else {
+            Text("已选 $count",style=MaterialTheme.typography.labelLarge,modifier=Modifier.weight(1f))
+            TextButton(onClick=if(count==total) onClear else onAll,enabled=total>0) { Text(if(count==total) "全不选" else "全选") }
+            IconButton(onClick=onDelete,enabled=count>0) { Icon(Icons.Default.DeleteOutline,"删除 ($count)",tint=if(count>0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline) }
+            IconButton(onClick=onExit) { Icon(Icons.Default.Close,"退出多选") }
         }
-        TextButton(onClick=onUndo) { Text("撤销") }
     }
 }
 

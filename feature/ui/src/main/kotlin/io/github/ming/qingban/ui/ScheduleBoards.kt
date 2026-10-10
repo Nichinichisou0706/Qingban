@@ -11,6 +11,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
@@ -19,24 +23,30 @@ import kotlinx.coroutines.launch
 import java.time.*
 
 @Composable fun DailyBoard(items: List<PlanItem>, onEdit: (PlanItem) -> Unit, onComplete: (PlanItem) -> Unit, onFocus: (PlanItem) -> Unit, onCheck: (PlanItem,Int) -> Unit, selected: Set<String>? = null, onSelect: (PlanItem) -> Unit = {}) {
+    val stacked=LocalDensity.current.fontScale>1.25f || LocalConfiguration.current.screenWidthDp<360
     val groups=items.groupBy { item -> item.schedule?.time?.substringBefore(':')?.let { "$it:00" } ?: when(item.schedule?.period) { "morning" -> "上午"; "afternoon" -> "下午"; "evening" -> "晚上"; else -> "当天待安排" } }
     val order=groups.keys.sortedBy { key -> when(key) { "上午" -> 6; "下午" -> 12; "晚上" -> 18; "当天待安排" -> 25; else -> key.substringBefore(':').toIntOrNull() ?: 25 } }
     Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface)) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
-            Row { Text("时段",Modifier.width(48.dp),fontSize=11.sp); Text("事项／学习工作",Modifier.weight(1f),fontSize=12.sp,fontWeight=FontWeight.Medium); Text("习惯 · 长期重复",Modifier.weight(1f),fontSize=12.sp,fontWeight=FontWeight.Medium) }
+            Row { Text("时段",Modifier.width(48.dp),style=MaterialTheme.typography.labelSmall); Text("事项",Modifier.weight(1f),style=MaterialTheme.typography.labelMedium); if(!stacked) Text("习惯",Modifier.weight(1f),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.secondary) }
             HorizontalDivider(Modifier.padding(top=10.dp),color=MaterialTheme.colorScheme.primary.copy(alpha=.35f))
             order.forEach { key ->
                 val tasks=DependencyPlanner.ordered(groups.getValue(key))
                 val life=tasks.filter { it.isHabitTask }
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical=8.dp)) {
+                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical=10.dp)) {
                     Text(key,Modifier.width(48.dp).padding(top=6.dp),fontSize=11.sp,color=MaterialTheme.colorScheme.primary)
-                    BoardColumn(tasks-life.toSet(),Modifier.weight(1f),onEdit,onComplete,onFocus,onCheck,selected,onSelect)
-                    VerticalDivider(Modifier.padding(horizontal=5.dp),color=MaterialTheme.colorScheme.outlineVariant)
-                    BoardColumn(life,Modifier.weight(1f),onEdit,onComplete,onFocus,onCheck,selected,onSelect)
+                    if(stacked) Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                        if(tasks.size>life.size) BoardColumn(tasks-life.toSet(),Modifier.fillMaxWidth(),onEdit,onComplete,onFocus,onCheck,selected,onSelect)
+                        if(life.isNotEmpty()) { Text("习惯",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.secondary); BoardColumn(life,Modifier.fillMaxWidth(),onEdit,onComplete,onFocus,onCheck,selected,onSelect) }
+                    } else {
+                        BoardColumn(tasks-life.toSet(),Modifier.weight(1f),onEdit,onComplete,onFocus,onCheck,selected,onSelect)
+                        VerticalDivider(Modifier.padding(horizontal=5.dp),color=MaterialTheme.colorScheme.outlineVariant)
+                        BoardColumn(life,Modifier.weight(1f),onEdit,onComplete,onFocus,onCheck,selected,onSelect)
+                    }
                 }
                 HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
             }
-            Text(if(selected!=null) "勾选要删除的事项" else "习惯按重复规则出现 · 勾选只完成当天这次",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=10.dp))
+            Text(if(selected!=null) "勾选要删除的事项" else "重复习惯只完成当天这次",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=10.dp))
         }
     }
 }
@@ -46,15 +56,15 @@ import java.time.*
         items.forEach { item ->
             Surface(Modifier.fillMaxWidth().clickable { if(selected!=null) onSelect(item) else onEdit(item) },shape=RoundedCornerShape(12.dp),color=if(item.status==ItemStatus.COMPLETED) MaterialTheme.colorScheme.surfaceVariant else if(item.isHabitTask) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer) {
                 Column(Modifier.padding(7.dp)) {
-                    Row(verticalAlignment=Alignment.CenterVertically) { if(selected!=null || item.kind!=ItemKind.ALARM) Checkbox(if(selected!=null) item.id in selected else item.status==ItemStatus.COMPLETED,{ if(selected!=null) onSelect(item) else onComplete(item) },modifier=Modifier.size(28.dp).semantics { contentDescription=(if(selected!=null) "选择事项：" else "完成事项：")+item.title }); Text(item.title,Modifier.weight(1f),fontSize=13.sp,lineHeight=18.sp) }
+                    Row(verticalAlignment=Alignment.CenterVertically) { if(selected!=null || item.kind!=ItemKind.ALARM) Checkbox(if(selected!=null) item.id in selected else item.status==ItemStatus.COMPLETED,{ if(selected!=null) onSelect(item) else onComplete(item) },modifier=Modifier.size(44.dp).semantics { contentDescription=(if(selected!=null) "选择事项：" else "完成事项：")+item.title }); Text(item.title,Modifier.weight(1f),style=MaterialTheme.typography.titleSmall) }
                     val range=item.schedule?.time?.let { time -> item.durationMinutes?.let { minutes -> val start=LocalTime.parse(time); val end=start.plusMinutes(minutes.toLong()); "$time — $end${if(start.hour*60+start.minute+minutes>=1440) "（次日）" else ""}" } ?: time } ?: item.schedule?.period?.let(::periodLabel).orEmpty()
-                    Text(range,fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(range,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     if(item.dependsOn.isNotEmpty()) Text("有前置事项 · 点开查看",fontSize=10.sp,color=MaterialTheme.colorScheme.secondary)
-                    if(item.detail.isNotBlank()) Text(item.detail,maxLines=2,overflow=TextOverflow.Ellipsis,fontSize=11.sp)
-                    if(selected==null) item.checklist.forEachIndexed { index,entry -> Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(entry.completed,{ onCheck(item,index) },modifier=Modifier.size(26.dp)); Text(entry.text,fontSize=11.sp,lineHeight=15.sp) } }
+                    if(item.detail.isNotBlank()) Text(item.detail,maxLines=2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    if(selected==null) item.checklist.forEachIndexed { index,entry -> Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(entry.completed,{ onCheck(item,index) },modifier=Modifier.size(44.dp)); Text(entry.text,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall) } }
                     if(item.isHabitTask) Text(RecurrenceRules.label(item.schedule!!.recurrence!!),fontSize=10.sp,color=MaterialTheme.colorScheme.secondary)
-                    if(item.label.isNotBlank()) Text(item.label,fontSize=10.sp,color=MaterialTheme.colorScheme.secondary)
-                    if(selected==null && item.kind!=ItemKind.ALARM && item.status==ItemStatus.OPEN) TextButton(onClick={ onFocus(item) },contentPadding=PaddingValues(0.dp),modifier=Modifier.height(32.dp)) { Text("专注做这件事",fontSize=10.sp) }
+                    if(item.label.isNotBlank() && item.label !in setOf("学习工作","习惯")) Text(item.label,style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.secondary)
+                    if(selected==null && item.kind!=ItemKind.ALARM && item.status==ItemStatus.OPEN) TextButton(onClick={ onFocus(item) },contentPadding=PaddingValues(horizontal=4.dp)) { Text("开始专注",style=MaterialTheme.typography.labelMedium) }
                 }
             }
         }
@@ -66,8 +76,7 @@ import java.time.*
     var view by rememberSaveable { mutableStateOf("month") }
     var monthText by rememberSaveable { mutableStateOf(YearMonth.from(selected).toString()) }
     val scope=rememberCoroutineScope()
-    LaunchedEffect(Unit) { view=deps.services.sessions.read("calendar_view") ?: "month" }
-    LaunchedEffect(requestedView) { if(requestedView!=null) view=requestedView }
+    LaunchedEffect(requestedView) { view=requestedView ?: deps.services.sessions.read("calendar_view") ?: "month" }
     LaunchedEffect(selected) { monthText=YearMonth.from(selected).toString() }
     val month=YearMonth.parse(monthText)
     Card(colors=CardDefaults.cardColors(containerColor=MaterialTheme.colorScheme.surface)) {
@@ -77,9 +86,9 @@ import java.time.*
                 TextButton(onClick={ onSelect(LocalDate.now(deps.services.clock)); monthText=YearMonth.from(LocalDate.now(deps.services.clock)).toString() }) { Text("今天") }
             }
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                TextButton(onClick={ if(view=="month") monthText=month.minusMonths(1).toString() else onSelect(selected.minusDays(when(view) { "week" -> 7L; "three_day" -> 3L; else -> 1L })) }) { Text("‹") }
+                IconButton(onClick={ if(view=="month") monthText=month.minusMonths(1).toString() else onSelect(selected.minusDays(when(view) { "week" -> 7L; "three_day" -> 3L; else -> 1L })) }) { Icon(Icons.Default.ChevronLeft,"上一页日期") }
                 Text(if(view=="month") "${month.year}年${month.monthValue}月" else "${selected.year}年${selected.monthValue}月${selected.dayOfMonth}日",Modifier.weight(1f),fontWeight=FontWeight.Medium)
-                TextButton(onClick={ if(view=="month") monthText=month.plusMonths(1).toString() else onSelect(selected.plusDays(when(view) { "week" -> 7L; "three_day" -> 3L; else -> 1L })) }) { Text("›") }
+                IconButton(onClick={ if(view=="month") monthText=month.plusMonths(1).toString() else onSelect(selected.plusDays(when(view) { "week" -> 7L; "three_day" -> 3L; else -> 1L })) }) { Icon(Icons.Default.ChevronRight,"下一页日期") }
             }
             if(view=="month") MonthEvents(month,selected,items,onSelect)
             else {
@@ -90,16 +99,16 @@ import java.time.*
     }
 }
 @Composable private fun MonthEvents(month: YearMonth, selected: LocalDate, items: List<PlanItem>, onSelect: (LocalDate) -> Unit) {
-    Row { "一二三四五六日".forEach { Text(it.toString(),Modifier.weight(1f),fontSize=11.sp) } }
+    Row { "一二三四五六日".forEach { Text(it.toString(),Modifier.weight(1f),style=MaterialTheme.typography.labelSmall,textAlign=androidx.compose.ui.text.style.TextAlign.Center) } }
     val start=month.atDay(1).minusDays(month.atDay(1).dayOfWeek.value-1L)
     val rows=(month.atDay(1).dayOfWeek.value-1+month.lengthOfMonth()+6)/7
     repeat(rows) { row -> Row(Modifier.fillMaxWidth().height(84.dp)) { repeat(7) { col ->
         val date=start.plusDays((row*7+col).toLong())
         val events=items.mapNotNull { ScheduleEngine.onDate(it,date) }.sortedBy { it.schedule?.time ?: "" }
         Column(Modifier.weight(1f).fillMaxHeight().border(.5.dp,MaterialTheme.colorScheme.outlineVariant).background(if(date==selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent).clickable { onSelect(date) }.padding(2.dp)) {
-            Text(date.dayOfMonth.toString(),fontSize=11.sp,color=if(YearMonth.from(date)!=month) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface)
-            events.take(2).forEach { event -> Text(event.title,Modifier.fillMaxWidth().background(if(event.status==ItemStatus.COMPLETED) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,RoundedCornerShape(3.dp)).padding(1.dp),maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=9.sp,lineHeight=13.sp) }
-            if(events.size>2) Text("+${events.size-2}",fontSize=9.sp)
+            Text(date.dayOfMonth.toString(),style=MaterialTheme.typography.labelMedium,color=if(YearMonth.from(date)!=month) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface)
+            events.take(2).forEach { event -> Text(event.title,Modifier.fillMaxWidth().background(if(event.status==ItemStatus.COMPLETED) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.secondaryContainer,RoundedCornerShape(4.dp)).padding(2.dp),maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=10.sp,lineHeight=14.sp) }
+            if(events.size>2) Text("+${events.size-2}",style=MaterialTheme.typography.labelSmall)
         }
     } } }
 }
@@ -145,7 +154,7 @@ import java.time.*
                     }
                 }
             }
-            Text("横向滑动看日期 · 点块编辑 · 无时长的事项以半小时展示",fontSize=10.sp,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("横向滑动看日期 · 点块编辑",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -1,6 +1,7 @@
 package io.github.ming.qingban.ui
 
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,6 +38,7 @@ import java.time.LocalDate
     var search by rememberSaveable { mutableStateOf("") }
     var selecting by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    BackHandler(selecting) { selecting=false; selected=emptyList() }
     var deleting by remember { mutableStateOf<List<PlanItem>?>(null) }
     var editor by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -73,19 +76,19 @@ import java.time.LocalDate
                 Row(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.secondaryContainer))).padding(start = 22.dp, top = 14.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         SoftTag("${today.monthValue}月${today.dayOfMonth}日 · 星期${"一二三四五六日"[today.dayOfWeek.value-1]}")
-                        Text(headline, fontSize = 26.sp, lineHeight = 35.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 16.dp))
+                        Text(headline,style=MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 12.dp))
                         Text(support, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 9.dp))
                         TextButton(onClick = onAssistant, contentPadding = PaddingValues(top = 10.dp)) { Text(cta); Icon(Icons.AutoMirrored.Filled.ArrowForward, null, Modifier.padding(start = 6.dp).size(16.dp)) }
                     }
-                    GptPet(modifier = Modifier.width(130.dp).height(205.dp), onClick = onAssistant)
+                    GptPet(modifier = Modifier.width(98.dp).height(160.dp), onClick = onAssistant)
                 }
             }
         }
         if(page == 0) item { DailyReviewCard(deps) }
         if(page == 0) item { HabitTodayCard(deps) }
         if(page == 1) item { ScheduleCalendar(day, all, deps, requestedView, { day=it }) { item,date -> editingId=item.id; createKind=item.kind; editDay=date.toString(); editor=true } }
-        if(page == 0) item { OutlinedButton(onClick={ onFocus(null) },modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Timer,null); Text(" 开始一段专注 · 番茄钟／正计时") } }
-        if(page == 2) item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text(searchHint) }, singleLine = true, shape = RoundedCornerShape(18.dp)) }
+        if(page == 0) item { TextButton(onClick={ onFocus(null) },modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Timer,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("开始一段专注") } }
+        if(page == 2) item { OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth(), leadingIcon = { Icon(Icons.Default.Search, null) },trailingIcon={ if(search.isNotEmpty()) IconButton(onClick={ search="" }) { Icon(Icons.Default.Close,"清除搜索") } }, placeholder = { Text(searchHint) }, singleLine = true, shape = RoundedCornerShape(18.dp)) }
         if(page == 3) item { Text(alarmIntro, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 10.dp)); if(all.any { it.delivery == DeliveryState.PERMISSION_REQUIRED }) OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) { Text("有闹钟等待开启权限 · 去设置") } }
         item { SectionTitle(when(page) { 0 -> "今天的事情"; 1 -> "${day.monthValue}月${day.dayOfMonth}日"; 2 -> "随手备忘"; else -> "我的闹钟" }, if(page != 3) "${shown.size} 件${if(completed) "已完成" else "待处理"}" else "音乐与振动，按你的方式提醒", trailing = { IconButton(onClick = ::add) { Icon(Icons.Default.Add, "新增") } }) }
         if(page != 3) item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(!completed, { completed = false }, label = { Text("待办") }); FilterChip(completed, { completed = true }, label = { Text("已完成") }) } }
@@ -106,23 +109,24 @@ import java.time.LocalDate
     if(editor && (editingId==null || editing!=null)) ItemEditor(createKind, editing, if(page in 0..1) editDay?.let(LocalDate::parse) ?: day else null, deps.platform, all, { editor = false }, { draft, scope, date -> vm.save(draft, editing, scope, date) }, { scope, date -> editing?.let { vm.cancel(it,scope,date) }; editor = false },onSplit={ vm.split(editing,it) })
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable private fun ItemCard(item: PlanItem, onEdit: () -> Unit, onComplete: () -> Unit, overdue: Boolean = false, onPin: (() -> Unit)? = null, prerequisites: List<String> = emptyList(), onCheck: ((Int) -> Unit)? = null, onMove: ((Int) -> Unit)? = null) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onEdit), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             if(item.kind != ItemKind.ALARM) Checkbox(item.status == ItemStatus.COMPLETED, { onComplete() }) else Icon(Icons.Default.Alarm, null, Modifier.padding(horizontal = 12.dp), tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(item.title, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                if(item.detail.isNotBlank()) Text(item.detail, maxLines = 2, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                Text(item.title,style=MaterialTheme.typography.titleMedium)
+                if(item.detail.isNotBlank()) Text(item.detail, maxLines = 2,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
                 if(prerequisites.isNotEmpty()) Text("先完成：${prerequisites.joinToString("、")}",fontSize=11.sp,color=MaterialTheme.colorScheme.secondary)
-                item.checklist.forEachIndexed { index,entry -> Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(entry.completed,{ onCheck?.invoke(index) },enabled=onCheck!=null,modifier=Modifier.size(32.dp)); Text(entry.text,fontSize=12.sp) } }
-                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                item.checklist.forEachIndexed { index,entry -> Row(verticalAlignment=Alignment.CenterVertically) { Checkbox(entry.completed,{ onCheck?.invoke(index) },enabled=onCheck!=null,modifier=Modifier.size(44.dp)); Text(entry.text,style=MaterialTheme.typography.bodySmall) } }
+                FlowRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                     SoftTag(if(overdue) item.schedule?.date ?: "待处理" else itemTime(item))
                     if(item.label.isNotBlank()) SoftTag(item.label, true)
                     item.deadline?.let { SoftTag("${it.date.substring(5)} 截止", true) }
                 }
             }
-            onPin?.let { IconButton(onClick=it,modifier=Modifier.size(30.dp)) { Icon(if(item.pinned) Icons.Default.PushPin else Icons.Default.PushPin,"置顶或取消置顶",tint=if(item.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,modifier=Modifier.size(17.dp)) } }
-            onMove?.let { move -> Column { IconButton(onClick={ move(-1) },modifier=Modifier.size(28.dp)) { Icon(Icons.Default.KeyboardArrowUp,"上移") }; IconButton(onClick={ move(1) },modifier=Modifier.size(28.dp)) { Icon(Icons.Default.KeyboardArrowDown,"下移") } } }
+            onPin?.let { IconButton(onClick=it,modifier=Modifier.size(44.dp)) { Icon(Icons.Default.PushPin,if(item.pinned) "取消置顶" else "置顶",tint=if(item.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,modifier=Modifier.size(18.dp)) } }
+            onMove?.let { move -> Column { IconButton(onClick={ move(-1) },modifier=Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowUp,"上移") }; IconButton(onClick={ move(1) },modifier=Modifier.size(44.dp)) { Icon(Icons.Default.KeyboardArrowDown,"下移") } } }
             Icon(Icons.Default.ChevronRight, "编辑", tint = MaterialTheme.colorScheme.outline)
         }
     }

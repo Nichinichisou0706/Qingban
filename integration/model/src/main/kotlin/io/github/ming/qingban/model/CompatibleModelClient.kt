@@ -20,7 +20,7 @@ class CompatibleModelClient(private val credentials: CredentialProvider) : Model
         val config = credentials.configuration() ?: error("请先配置模型")
         val endpoint = ModelEndpoints.chat(config.baseUrl)
         val payload = buildJsonObject {
-            put("model", config.model); put("temperature", 0.2); put("max_tokens", 2048)
+            put("model", config.model); put("temperature", 0.2); put("max_tokens", 4096)
             if(config.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
             put("messages", buildJsonArray {
                 add(buildJsonObject { put("role", "system"); put("content", request.systemPrompt) })
@@ -50,7 +50,10 @@ class CompatibleModelClient(private val credentials: CredentialProvider) : Model
             val source=responseBody.source(); source.request(1_000_001)
             require(source.buffer.size<=1_000_000) { "模型响应过大" }
             val body=source.readUtf8()
-            val content = Json.parseToJsonElement(body).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject?.get("content") ?: error("模型响应缺少 content")
+            val choice = Json.parseToJsonElement(body).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: error("模型响应缺少 choices")
+            if(choice["finish_reason"]?.jsonPrimitive?.content=="length") throw ModelOutputException("model_output_truncated","模型输出被长度上限截断，请缩短单次方案，不返回未闭合的 JSON")
+            if(choice["finish_reason"]?.jsonPrimitive?.content=="content_filter") error("模型接口过滤了本次输出，未收到可执行决策")
+            val content=choice["message"]?.jsonObject?.get("content") ?: error("模型响应缺少 content")
             return when(content) { is JsonPrimitive -> { require(content.isString) { "模型未返回文本内容" }; content.content }; is JsonArray -> content.joinToString("") { it.jsonObject["text"]?.jsonPrimitive?.content ?: "" }; else -> error("模型响应格式不支持") }
     }
 }

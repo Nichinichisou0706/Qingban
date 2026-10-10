@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.dp
         Text("技术依赖包括 Kotlin、AndroidX / Compose / Room、OkHttp、PDFBox Android、中文 ML Kit OCR。依赖版本、许可证链接与素材来源随安装包附带。")
         TextButton(onClick={ showNotices=true }) { Text("查看第三方说明") }
         Text("GPT 娘图片沿用铭哥青铃项目中的处理素材，原始来源为 Whom001x/-。原素材的使用授权尚未在仓库中明确，当前安装包用于开发验收。")
-        Text("${info["package"].orEmpty()} · 当前版本待手机验收")
+        Text(info["package"].orEmpty(),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
     }
     if(showNotices) AlertDialog(onDismissRequest={ showNotices=false },title={ Text("第三方说明") },text={ Text(notices,Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState())) },confirmButton={ TextButton(onClick={ showNotices=false }) { Text("关闭") } })
 }

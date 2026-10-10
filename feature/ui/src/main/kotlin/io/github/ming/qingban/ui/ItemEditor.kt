@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
     var more by rememberSaveable(stateKey) { mutableStateOf(kind == ItemKind.ALARM) }
     var pickDate by rememberSaveable(stateKey) { mutableStateOf(false) }
     var error by rememberSaveable(stateKey) { mutableStateOf<String?>(null) }
+    var confirmingCancel by rememberSaveable(stateKey) { mutableStateOf(false) }
     var acknowledged by rememberSaveable(stateKey) { mutableStateOf<Int?>(null) }
     var editScope by rememberSaveable(stateKey) { mutableStateOf(if(item?.schedule?.recurrence!=null && initialDay!=null) EditScope.THIS_OCCURRENCE else EditScope.WHOLE_SERIES) }
     var occurrence by rememberSaveable(stateKey) { mutableStateOf(initialDay?.toString() ?: originalOccurrence ?: item?.schedule?.recurrence?.startDate ?: "") }
@@ -170,7 +171,8 @@ import kotlinx.coroutines.launch
                 if(warnings.isNotEmpty() && acknowledged!=draft.hashCode()) { acknowledged=draft.hashCode(); error=warnings.joinToString("；")+"。再次点击保存可保留这个安排。" } else onSave(draft,editScope,occurrence.takeIf { it.isNotBlank() })
             }
         } catch(e: Exception) { error = e.message }
-    }) { Text("保存") } }, dismissButton = { Row { if(item!=null) TextButton(onClick={ onCancel(editScope,occurrence.takeIf { it.isNotBlank() }) }) { Text("取消事项") }; TextButton(onClick = onDismiss) { Text("返回") } } })
+    },enabled=title.isNotBlank() && title.length<=240) { Text("保存") } }, dismissButton = { Row { if(item!=null) TextButton(onClick={ confirmingCancel=true }) { Text(if(kind==ItemKind.ALARM) "关闭闹钟" else "取消事项",color=MaterialTheme.colorScheme.error) }; TextButton(onClick = onDismiss) { Text("返回") } } })
+    if(confirmingCancel && item!=null) AlertDialog(onDismissRequest={ confirmingCancel=false },title={ Text(if(kind==ItemKind.ALARM) "关闭这个闹钟？" else "取消这件事？") },text={ Text("《${item.title}》将停止提醒。"+if(item.schedule?.recurrence!=null) when(editScope) { EditScope.THIS_OCCURRENCE -> "只影响本次，后续仍按规则出现。"; EditScope.THIS_AND_FUTURE -> "影响本次和以后的安排。"; EditScope.WHOLE_SERIES -> "影响整个重复系列。" } else "可在全部事项中恢复。") },confirmButton={ TextButton(onClick={ confirmingCancel=false; onCancel(editScope,occurrence.takeIf { it.isNotBlank() }) }) { Text("确认") } },dismissButton={ TextButton(onClick={ confirmingCancel=false }) { Text("保留") } })
     if(chooseMusic) MusicPicker(platform,{ chooseMusic=false },{ sound=it; chooseMusic=false })
     if(showSplit && splitPreview!=null && onSplit!=null) AlertDialog(onDismissRequest={ showSplit=false },title={ Text("确认拆分任务") },text={ Column(Modifier.verticalScroll(rememberScrollState())) { Text("原任务归档，新任务可以分别完成、改期和专注；整批可撤销。"); splitPreview.forEach { d -> Text("${d.schedule?.time} · ${d.title} · ${d.durationMinutes} 分钟",Modifier.padding(vertical=8.dp)); HorizontalDivider() } } },confirmButton={ Button(onClick={ onSplit(splitPreview); showSplit=false }) { Text("拆分并保存") } },dismissButton={ TextButton(onClick={ showSplit=false }) { Text("返回") } })
     if(chooseRepeat) AlarmRepeatPicker(recurrence,{ chooseRepeat=false },showDateSettings=kind!=ItemKind.ALARM,isAlarm=kind==ItemKind.ALARM) { rule ->

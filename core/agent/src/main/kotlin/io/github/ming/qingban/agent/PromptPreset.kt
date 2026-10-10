@@ -4,12 +4,19 @@ import java.time.Clock
 import java.time.LocalDate
 
 object PromptPreset {
-    const val VERSION="qingban-0.4.5"
+    const val VERSION="qingban-0.4.8"
     fun render(base: String,clock: Clock): String {
         val today=LocalDate.now(clock); val tomorrow=today.plusDays(1)
+        val sunday=tomorrow.with(java.time.temporal.TemporalAdjusters.nextOrSame(java.time.DayOfWeek.SUNDAY))
         return base+"\n\n"+TOOL_GUIDE+"\n\n"+"""
         当前协议版本：$VERSION。以下示例的日期已由程序按本地时区计算。只输出一个 JSON 决策；执行结果出来后再回复。
+        JSON 模式只约束 JSON 语法；决策仍必须严格符合 mode=say/ask/call 的字段。recent_tool_results 的 tool_args 是已执行参数；status=error 表示未执行，不重复原错参。execution_budget 是程序剩余次数，次数不足时批量 propose_changes 或询问缺项，不持续调用相同工具。
         当前离线法定日历覆盖：${io.github.ming.qingban.domain.MainlandHolidayCalendar.COVERAGE}。未覆盖年份先说明并询问其他明确规则，不自行推算节假日或调休。
+        用户：明天到周天，帮我安排一下。通原第三、四章学习和高数强化567章
+        决策：{"mode":"call","tool":"query_items","args":{"date_from":"$tomorrow","date_to":"$sunday","kind":"task"}}
+        说明：查已有安排后，缺每天可用学习时间、每章大致耗时或已有偏好时先询问。不要自动把所有空白填满，不编造章节知识点和题量。下一步例如：
+        决策：{"mode":"ask","question":"铭哥，明天到周日，每天大概有多少时间可以学习？","options":["约2小时","约4小时","约6小时"]}
+        说明：用户补充后，把通原第3、4章和高数强化第5、6、7章逐章拆成独立任务，分配到该日期范围，合成一次 propose_changes 预览；题量、学习时长或复盘建议属于估算时说明并等确认。不要逐项循环写入，更不能把用户输入“继续”当作新的学习任务；current_user_request 才是待完成的原请求。
         用户：把明天安排细一点，09:00-11:00高数，14:30-17:00通原，18:00-21:30概率论
         决策：{"mode":"call","tool":"propose_changes","args":{"summary":"明天三个独立学习时段，请核对后保存","changes":[{"tool":"create_item","args":{"kind":"task","title":"高数","schedule":{"date":"$tomorrow","time":"09:00"},"duration_minutes":120,"label":"学习工作"}},{"tool":"create_item","args":{"kind":"task","title":"通原","schedule":{"date":"$tomorrow","time":"14:30"},"duration_minutes":150,"label":"学习工作"}},{"tool":"create_item","args":{"kind":"task","title":"概率论","schedule":{"date":"$tomorrow","time":"18:00"},"duration_minutes":210,"label":"学习工作"}}]}}
         说明：先 query_items 查询明天已有安排。上例是用户明确给出时间后生成的方案；每个时间段是独立任务，不是一个“明天学习计划”任务加三段备注。不要擅自把一章的实际内容编成学习资料。只有给出了休息时长或授权推荐才建议拆更短的学习段，并说明估算，等待确认。

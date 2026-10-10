@@ -106,8 +106,12 @@ class MainActivity : ComponentActivity() {
             val launch=packageManager.getLaunchIntentForPackage("com.netease.cloudmusic")
             startActivity(launch ?: Intent(Intent.ACTION_VIEW,Uri.parse("https://music.163.com")))
         }
-        override fun petSettings(): Map<String,String> { val prefs = getSharedPreferences("pet_settings",MODE_PRIVATE); return mapOf("size" to prefs.getInt("size",82).toString(),"alpha" to prefs.getFloat("alpha",1f).toString(),"animations" to prefs.getBoolean("animations",true).toString()) }
-        override fun savePetSettings(size: Int, alpha: Float, animations: Boolean) { getSharedPreferences("pet_settings",MODE_PRIVATE).edit().putInt("size",size.coerceIn(48,130)).putFloat("alpha",alpha.coerceIn(0.3f,1f)).putBoolean("animations",animations).apply(); stopPet() }
+        override fun petSettings(): Map<String,String> { val prefs = getSharedPreferences("pet_settings",MODE_PRIVATE); return mapOf("size" to "46","alpha" to prefs.getFloat("alpha",1f).toString(),"animations" to prefs.getBoolean("animations",true).toString(),"running" to prefs.getBoolean("running",false).toString()) }
+        override fun savePetSettings(size: Int, alpha: Float, animations: Boolean) {
+            val prefs=getSharedPreferences("pet_settings",MODE_PRIVATE)
+            prefs.edit().putInt("size",46).putFloat("alpha",alpha.coerceIn(0.3f,1f)).putBoolean("animations",animations).apply()
+            if(prefs.getBoolean("running",false)) startService(Intent(this@MainActivity,PetOverlayService::class.java).setAction("refresh"))
+        }
         override fun hidePet() { if(getSharedPreferences("pet_settings",MODE_PRIVATE).getBoolean("running",false)) startService(Intent(this@MainActivity,PetOverlayService::class.java).setAction("hide")) }
         override suspend fun exportPortable(uri: String) = container.portable.export(Uri.parse(uri))
         override suspend fun restorePortable(uri: String) { container.portable.restore(Uri.parse(uri)); container.assistant.reloadFromStorage(); container.services.items.restoreSchedules(); container.services.focus.reload(); container.services.habits.reload(); container.services.review.refresh() }

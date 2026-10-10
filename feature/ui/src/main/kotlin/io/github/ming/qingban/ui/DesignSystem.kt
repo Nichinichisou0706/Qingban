@@ -14,6 +14,9 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import io.github.ming.qingban.domain.*
 import java.time.LocalDate
@@ -25,7 +28,14 @@ val LocalPetAnimations = compositionLocalOf { true }
 
 private val light = lightColorScheme(primary = Color(0xFF237B61), onPrimary = Color.White, primaryContainer = Color(0xFFDDF3E7), secondary = Color(0xFF75668F), secondaryContainer = Color(0xFFEDE8F7), background = Color(0xFFF6FAF8), surface = Color(0xFFFFFFFF), surfaceVariant = Color(0xFFEBF2EE), onSurface = Color(0xFF263E35), onSurfaceVariant = Color(0xFF61776C), outlineVariant = Color(0xFFDDE8E1))
 private val dark = darkColorScheme(primary = Color(0xFF93D8BB), primaryContainer = Color(0xFF1E4838), secondary = Color(0xFFCABCE4), secondaryContainer = Color(0xFF40364F), background = Color(0xFF141F1B), surface = Color(0xFF1D2B25), surfaceVariant = Color(0xFF2B3B33), onSurface = Color(0xFFE3EEE7), onSurfaceVariant = Color(0xFFB0C4B7), outlineVariant = Color(0xFF354C3E))
-@Composable fun QingbanTheme(content: @Composable () -> Unit) { MaterialTheme(colorScheme = if(isSystemInDarkTheme()) dark else light, shapes = Shapes(medium = RoundedCornerShape(20.dp), large = RoundedCornerShape(28.dp)), content = content) }
+private fun uiText(size: Int,line: Int,weight: FontWeight=FontWeight.Normal)=TextStyle(fontSize=size.sp,lineHeight=line.sp,fontWeight=weight,letterSpacing=0.sp,lineHeightStyle=LineHeightStyle(LineHeightStyle.Alignment.Center,LineHeightStyle.Trim.Both))
+private val qingbanTypography=Typography(
+    headlineLarge=uiText(30,38,FontWeight.SemiBold),headlineMedium=uiText(26,34,FontWeight.SemiBold),headlineSmall=uiText(22,30,FontWeight.SemiBold),
+    titleLarge=uiText(20,28,FontWeight.SemiBold),titleMedium=uiText(16,24,FontWeight.Medium),titleSmall=uiText(14,21,FontWeight.Medium),
+    bodyLarge=uiText(15,24),bodyMedium=uiText(14,22),bodySmall=uiText(12,19),
+    labelLarge=uiText(14,20,FontWeight.Medium),labelMedium=uiText(12,18,FontWeight.Medium),labelSmall=uiText(11,16),
+)
+@Composable fun QingbanTheme(content: @Composable () -> Unit) { MaterialTheme(colorScheme = if(isSystemInDarkTheme()) dark else light, typography=qingbanTypography,shapes = Shapes(small=RoundedCornerShape(12.dp),medium = RoundedCornerShape(18.dp), large = RoundedCornerShape(24.dp)), content = content) }
 @Composable fun GptPet(thinking: Boolean = false, waiting: Boolean = false, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val animate = LocalPetAnimations.current && lifecycle.isAtLeast(Lifecycle.State.RESUMED)
@@ -37,11 +47,11 @@ private val dark = darkColorScheme(primary = Color(0xFF93D8BB), primaryContainer
 }
 @Composable fun SectionTitle(title: String, subtitle: String? = null, trailing: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { Text(title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold); subtitle?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp)) } }
+        Column(Modifier.weight(1f)) { Text(title,style=MaterialTheme.typography.titleMedium); subtitle?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant,style=MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 3.dp)) } }
         trailing?.invoke()
     }
 }
-@Composable fun SoftTag(text: String, lavender: Boolean = false) { Text(text, color = if(lavender) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary, fontSize = 11.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if(lavender) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)) }
+@Composable fun SoftTag(text: String, lavender: Boolean = false) { Text(text, color = if(lavender) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary,style=MaterialTheme.typography.labelSmall,maxLines=1,overflow=TextOverflow.Ellipsis, modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if(lavender) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer).padding(horizontal = 8.dp, vertical = 4.dp)) }
 @Composable fun EmptyCard(text: String, hint: String, onClick: () -> Unit) {
     Card(Modifier.fillMaxWidth().clickable(onClick = onClick), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {

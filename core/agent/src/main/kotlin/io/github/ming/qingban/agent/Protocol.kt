@@ -16,6 +16,8 @@ interface ModelClient {
     suspend fun available(): Boolean
     suspend fun decide(request: AgentRequest): String
 }
+class ModelOutputException(val errorCode: String, message: String) : IllegalStateException(message)
+class DecisionFormatException(val errorCode: String, message: String) : IllegalArgumentException(message)
 data class ModelConfiguration(val baseUrl: String, val model: String, val apiKey: String, val jsonMode: Boolean = true)
 fun interface CredentialProvider { suspend fun configuration(): ModelConfiguration? }
 sealed interface Decision {
@@ -26,20 +28,31 @@ sealed interface Decision {
 object DecisionParser {
     private val json = Json
     fun parse(raw: String): Decision {
-        require(raw.length <= 32_000) { "模型输出过长" }
+        fun checkFormat(valid: Boolean, code: String, message: String) {
+            if(!valid) throw DecisionFormatException(code,message)
+        }
+        checkFormat(raw.length <= 32_000,"decision_too_large","模型输出超过 32000 字符，请缩短单次方案")
         val clean = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-        val obj = json.parseToJsonElement(clean).jsonObject
-        fun text(key: String) = (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() } ?: error("缺少文本字段 $key")
+        val parsed = try { json.parseToJsonElement(clean) } catch(e: Exception) {
+            throw DecisionFormatException("invalid_decision_json","返回内容不是完整的合法 JSON；不要输出解释文字或未闭合的对象")
+        }
+        val obj = parsed as? JsonObject ?: throw DecisionFormatException("invalid_decision_object","决策必须是一个 JSON 对象，不能是数组或文本")
+        fun text(key: String) = (obj[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
+            ?: throw DecisionFormatException("missing_decision_field","缺少非空文本字段 $key")
+        fun fields(vararg names: String) = checkFormat(obj.keys == names.toSet(),"invalid_decision_fields","决策字段必须恰好为 ${names.joinToString("、")}")
         return when(text("mode")) {
-            "say" -> { require(obj.keys == setOf("mode", "text")); Decision.Say(text("text")) }
+            "say" -> { fields("mode","text"); Decision.Say(text("text")) }
             "ask" -> {
-                require(obj.keys == setOf("mode", "question", "options"))
-                val options = obj["options"]!!.jsonArray.map { it.jsonPrimitive.also { p -> require(p.isString) }.content }
-                require(options.size <= 3 && options.distinct().size == options.size && options.all { it.isNotBlank() })
+                fields("mode","question","options")
+                val array=obj["options"] as? JsonArray ?: throw DecisionFormatException("invalid_question_options","options 必须是字符串数组，可以为空")
+                val options = array.map { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content
+                    ?: throw DecisionFormatException("invalid_question_options","options 中每一项必须是文本") }
+                checkFormat(options.size <= 3 && options.distinct().size == options.size && options.all { it.isNotBlank() },"invalid_question_options","options 最多 3 个互不重复的非空选项")
                 Decision.Ask(text("question"), options)
             }
-            "call" -> { require(obj.keys == setOf("mode", "tool", "args")); Decision.Call(text("tool"), obj["args"]!!.jsonObject) }
-            else -> error("未知 mode，仅支持 say、ask、call")
+            "call" -> { fields("mode","tool","args"); Decision.Call(text("tool"),obj["args"] as? JsonObject
+                ?: throw DecisionFormatException("invalid_tool_arguments","args 必须是 JSON 对象，不能是数组或文本")) }
+            else -> throw DecisionFormatException("unknown_decision_mode","mode 仅支持 say、ask、call")
         }
     }
 }

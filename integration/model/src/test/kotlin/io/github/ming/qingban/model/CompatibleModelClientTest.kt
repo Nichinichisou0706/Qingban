@@ -25,6 +25,7 @@ class CompatibleModelClientTest {
             val result = client.decide(AgentRequest("preset", listOf(ChatLine("user", "你好")), buildJsonObject { put("current_user_request", "你好") }))
             assertTrue(DecisionParser.parse(result) is Decision.Say)
             assertEquals("json_object", received.get()["response_format"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            assertEquals(4096,received.get()["max_tokens"]!!.jsonPrimitive.int)
             assertEquals("system", received.get()["messages"]!!.jsonArray.first().jsonObject["role"]!!.jsonPrimitive.content)
         } finally { server.stop(0) }
     }
@@ -40,6 +41,13 @@ class CompatibleModelClientTest {
     @Test fun completeEndpointIsAccepted()=runBlocking { fixture(reply="""{"choices":[{"message":{"content":"ok"}}]}""") { base -> assertEquals("ok",CompatibleModelClient { ModelConfiguration("$base/v1/chat/completions","test","fake") }.decide(request())) } }
     @Test fun oversizedBodyIsRejected()=runBlocking { fixture(reply="x".repeat(1_000_001)) { base -> assertTrue(runCatching { CompatibleModelClient { ModelConfiguration(base,"test","fake") }.decide(request()) }.isFailure) } }
     @Test fun nullContentIsRejected()=runBlocking { fixture(reply="""{"choices":[{"message":{"content":null}}]}""") { base -> assertTrue(runCatching { CompatibleModelClient { ModelConfiguration(base,"test","fake") }.decide(request()) }.isFailure) } }
+    @Test fun lengthFinishReasonReportsTruncationInsteadOfReturningPartialJson()=runBlocking {
+        fixture(reply="""{"choices":[{"finish_reason":"length","message":{"content":"{\"mode\":\"call\",\"tool\":\"propose_changes\""}}]}""") { base ->
+            val failure=runCatching { CompatibleModelClient { ModelConfiguration(base,"test","fake") }.decide(request()) }.exceptionOrNull()
+            assertNotNull("A length-limited response must not reach the JSON decision parser",failure)
+            assertTrue(failure!!.message.orEmpty().contains("截断"))
+        }
+    }
     @Test fun credentialsInUrlAreRejected()=runBlocking { assertTrue(runCatching { CompatibleModelClient { ModelConfiguration("http://fake:secret@localhost/v1","test","fake") }.decide(request()) }.isFailure) }
     @Test fun cancelledRequestDoesNotWaitForHttpTimeout()=runBlocking {
         val started=CompletableDeferred<Unit>(); val release=java.util.concurrent.CountDownLatch(1)

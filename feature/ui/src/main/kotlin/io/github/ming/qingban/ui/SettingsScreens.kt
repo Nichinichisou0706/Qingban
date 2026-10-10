@@ -12,10 +12,14 @@ import androidx.compose.ui.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.launch
 
 @Composable fun PlatformSettingsScreen(deps: UiDependencies) {
     var permissionStatus by remember { mutableStateOf(deps.platform.permissions()) }
+    var petRunning by remember { mutableStateOf(deps.platform.petSettings()["running"]=="true") }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permissionStatus=deps.platform.permissions(); petRunning=deps.platform.petSettings()["running"]=="true" }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val petConfig=remember { deps.platform.petSettings() }
@@ -34,13 +38,16 @@ import kotlinx.coroutines.launch
         Text("HyperOS 的自启动与省电限制需在系统应用设置中调整，当前无法自动确认。", fontSize = 12.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         OutlinedButton(onClick={ deps.platform.requestPermission("autostart") },modifier=Modifier.fillMaxWidth()) { Text("打开 HyperOS 自启动设置") }
         SectionTitle("手机桌面陪伴")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { deps.platform.startPet() }) { Text("开启悬浮 GPT 娘") }; OutlinedButton(onClick = { deps.platform.stopPet() }) { Text("关闭") } }
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) { Text("悬浮 GPT 娘",style=MaterialTheme.typography.titleSmall); Text(if(petRunning) "已开启" else "未开启",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+            Button(onClick={ if(petRunning) deps.platform.stopPet() else deps.platform.startPet(); scope.launch { kotlinx.coroutines.delay(400); petRunning=deps.platform.petSettings()["running"]=="true" } }) { Text(if(petRunning) "关闭" else "开启") }
+        }
         OutlinedButton(onClick = { deps.platform.pinWidget() }, modifier = Modifier.fillMaxWidth()) { Text("添加桌面小组件") }
         Text("角色可以拖动、贴边、点击记事；关闭桌宠不会取消闹钟。", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("常态尺寸与轮盘中心角色一致 · 46 × 76",style=MaterialTheme.typography.bodySmall)
+        Text("点击展开快捷功能 · 拖动贴边 · 5 秒闲置淡化",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         Text("透明度：${(petAlpha*100).toInt()}%"); Slider(petAlpha,{ petAlpha=it },valueRange=0.3f..1f)
         Row { Text("轻量角色动画",Modifier.weight(1f)); Switch(animations,{ animations=it }) }
-        Row { TextButton(onClick={ deps.platform.savePetSettings(petSize.toInt(),petAlpha,animations); Toast.makeText(context,"设置已保存，重新开启桌宠后生效",Toast.LENGTH_SHORT).show() }) { Text("保存角色设置") }; TextButton(onClick=deps.platform::hidePet) { Text("隐藏 10 分钟") } }
+        Row { TextButton(onClick={ deps.platform.savePetSettings(petSize,petAlpha,animations); Toast.makeText(context,"角色设置已保存并生效",Toast.LENGTH_SHORT).show() }) { Text("保存角色设置") }; TextButton(onClick=deps.platform::hidePet,enabled=petRunning) { Text("隐藏 10 分钟") } }
         SectionTitle("本地备份")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = { export.launch("轻伴备份.json") }) { Text("导出备份") }; OutlinedButton(onClick = { restore.launch(arrayOf("application/json", "text/plain")) }) { Text("合并备份") } }
         Text("备份包含事项、资料和偏好，不含 API 密钥与音乐文件。合并时保留本机已有内容。", fontSize = 12.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)

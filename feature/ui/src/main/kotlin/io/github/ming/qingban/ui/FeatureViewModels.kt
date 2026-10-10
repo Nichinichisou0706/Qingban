@@ -73,10 +73,23 @@ class AssistantViewModel(val coordinator: AgentCoordinator, private val memory: 
 class LibraryViewModel(private val services: Services) : ViewModel() {
     val sources = services.knowledge.store.observe().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     val error = MutableStateFlow<String?>(null)
-    fun import(title: String, text: String, remote: Boolean, attachment: KnowledgeAttachment? = null, platform: PlatformActions? = null) = viewModelScope.launch { runCatching { services.knowledge.importText(title, text, remote,attachment) }.onFailure { error.value = it.message; attachment?.let { file -> platform?.removeOriginal(file.id) } } }
+    val saving=MutableStateFlow(false)
+    fun import(title: String, text: String, remote: Boolean, attachment: KnowledgeAttachment? = null, onSaved: ()->Unit) = viewModelScope.launch {
+        if(saving.value) return@launch
+        saving.value=true; error.value=null
+        try { services.knowledge.importText(title,text,remote,attachment); onSaved() }
+        catch(e: Exception) { if(e is kotlinx.coroutines.CancellationException) throw e; error.value=e.message ?: "保存未完成，请重试" }
+        finally { saving.value=false }
+    }
     fun delete(source: KnowledgeSource) = viewModelScope.launch { services.knowledge.delete(source.id) }
     fun remote(source: KnowledgeSource, enabled: Boolean) = viewModelScope.launch { services.knowledge.allowRemote(source.id, enabled) }
-    fun update(source: KnowledgeSource, title: String, text: String, enabled: Boolean, from: String?, until: String?, origin: String, reliability: String) = viewModelScope.launch { runCatching { services.knowledge.update(source.id,title,text,enabled,from,until,origin,reliability) }.onFailure { error.value = it.message } }
+    fun update(source: KnowledgeSource, title: String, text: String, enabled: Boolean, from: String?, until: String?, origin: String, reliability: String, onSaved: ()->Unit) = viewModelScope.launch {
+        if(saving.value) return@launch
+        saving.value=true; error.value=null
+        try { services.knowledge.update(source.id,title,text,enabled,from,until,origin,reliability); onSaved() }
+        catch(e: Exception) { if(e is kotlinx.coroutines.CancellationException) throw e; error.value=e.message ?: "保存未完成，请重试" }
+        finally { saving.value=false }
+    }
     fun delete(source: KnowledgeSource, linked: Boolean, platform: PlatformActions? = null) = viewModelScope.launch { runCatching { services.knowledge.delete(source.id,linked); source.attachment?.let { platform?.removeOriginal(it.id) } }.onFailure { error.value=it.message } }
 }
 class MemoryViewModel(val service: MemoryService) : ViewModel() {

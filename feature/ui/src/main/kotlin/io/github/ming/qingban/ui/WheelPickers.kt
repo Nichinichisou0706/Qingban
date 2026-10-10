@@ -2,6 +2,7 @@ package io.github.ming.qingban.ui
 
 import android.widget.NumberPicker
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,14 +21,14 @@ import java.time.*
         descendantFocusability=NumberPicker.FOCUS_BLOCK_DESCENDANTS
         minValue=range.first; maxValue=range.last; wrapSelectorWheel=false
         setFormatter { n -> (if(suffix in setOf("时","分")) n.toString().padStart(2,'0') else n.toString())+suffix }
-        if(android.os.Build.VERSION.SDK_INT>=29) { textColor=foreground; textSize=54f; selectionDividerHeight=2 }
+        if(android.os.Build.VERSION.SDK_INT>=29) { textColor=foreground; textSize=20*resources.displayMetrics.scaledDensity; selectionDividerHeight=2 }
         setOnValueChangedListener { _,_,new -> current(new) }
     } },update={ picker ->
         picker.setOnValueChangedListener(null)
         // NumberPicker requires the new maximum before a larger minimum.
         picker.maxValue=maxOf(picker.maxValue,range.last); picker.minValue=range.first; picker.maxValue=range.last
         picker.value=value.coerceIn(range); picker.contentDescription="选择${suffix}，当前${picker.value}"
-        if(android.os.Build.VERSION.SDK_INT>=29) picker.textColor=selected
+        if(android.os.Build.VERSION.SDK_INT>=29) { picker.textColor=selected; picker.textSize=20*picker.resources.displayMetrics.scaledDensity }
         picker.setOnValueChangedListener { _,_,new -> current(new) }
     })
 }
@@ -85,6 +86,6 @@ import java.time.*
         val initial=runCatching { LocalDateTime.parse(value) }.getOrDefault(LocalDate.now().atTime(8,0))
         var date by rememberSaveable { mutableStateOf(initial.toLocalDate().toString()) }
         var time by rememberSaveable { mutableStateOf(initial.toLocalTime().toString()) }
-        AlertDialog(onDismissRequest={ open=false },title={ Text(label) },text={ Column { DateWheels(date) { date=it }; TimeWheels(time) { time=it } } },confirmButton={ TextButton(onClick={ onChange("${date}T$time"); open=false }) { Text("确定") } },dismissButton={ Row { TextButton(onClick={ onChange(""); open=false }) { Text("清除") }; TextButton(onClick={ open=false }) { Text("返回") } } })
+        AlertDialog(onDismissRequest={ open=false },title={ Text(label) },text={ Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) { DateWheels(date) { date=it }; TimeWheels(time) { time=it } } },confirmButton={ TextButton(onClick={ onChange("${date}T$time"); open=false }) { Text("确定") } },dismissButton={ Row { TextButton(onClick={ onChange(""); open=false }) { Text("清除") }; TextButton(onClick={ open=false }) { Text("返回") } } })
     }
 }

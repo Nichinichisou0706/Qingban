@@ -22,14 +22,13 @@ import java.time.*
     }
 }
 @Composable internal fun EditorDialog(kind: ItemKind,onDismiss: ()->Unit,title: @Composable ()->Unit,text: @Composable ()->Unit,confirmButton: @Composable ()->Unit,dismissButton: @Composable ()->Unit) {
-    if(kind==ItemKind.ALARM) AlertDialog(onDismissRequest=onDismiss,title=title,text=text,confirmButton=confirmButton,dismissButton=dismissButton)
-    else Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)) {
-        Surface(Modifier.fillMaxWidth().fillMaxHeight(0.92f).padding(horizontal=12.dp),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surface) {
+    Dialog(onDismissRequest=onDismiss,properties=DialogProperties(usePlatformDefaultWidth=false)) {
+        Surface(Modifier.fillMaxWidth().fillMaxHeight(if(kind==ItemKind.ALARM) .86f else .92f).padding(horizontal=12.dp).imePadding(),shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surface) {
             Column(Modifier.padding(16.dp)) {
-                Box(Modifier.padding(bottom=14.dp)) { title() }
+                Box(Modifier.padding(bottom=14.dp)) { ProvideTextStyle(MaterialTheme.typography.titleLarge) { title() } }
                 Box(Modifier.weight(1f)) { text() }
                 HorizontalDivider(Modifier.padding(vertical=10.dp))
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) { dismissButton(); confirmButton() }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) { dismissButton(); confirmButton() }
             }
         }
     }

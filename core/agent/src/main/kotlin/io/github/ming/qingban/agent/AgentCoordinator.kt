@@ -28,17 +28,29 @@ class AgentCoordinator(private val services: Services, private val client: Model
     suspend fun reloadFromStorage() = mutex.withLock { loaded=false; mutableSession.value=AgentSession(); ensureLoaded() }
     private suspend fun ensureLoaded() { if(loaded) return; services.sessions.read("agent_session")?.let { raw -> runCatching { json.decodeFromString<AgentSession>(raw) }.getOrNull()?.let { mutableSession.value = it } }; loaded = true }
     suspend fun clear() = mutex.withLock { mutableSession.value = AgentSession(); save(); services.sessions.remove("current_proposal") }
-    suspend fun send(text: String) = mutex.withLock { runTurn(text) }
+    suspend fun send(text: String) = mutex.withLock {
+        ensureLoaded()
+        val canContinue=continuationCommand(text) && mutableSession.value.pendingUserRequest==null && mutableSession.value.pendingLocal==null
+        val turn=if(canContinue) turnToResume() else null
+        if(turn!=null) { append(ChatLine("user",text.trim())); runTurn(turn.request,turn) }
+        else runTurn(text)
+    }
     suspend fun retry(index: Int = -1) = mutex.withLock {
         ensureLoaded()
-        val turn=if(index<0) mutableSession.value.activeTurn else mutableSession.value.interruptedTurns.getOrNull(index)
-        if(turn!=null) {
-            if(index>=0) {
-                val others=mutableSession.value.interruptedTurns.filterIndexed { i,_ -> i!=index } + listOfNotNull(mutableSession.value.activeTurn)
-                mutableSession.value=mutableSession.value.copy(interruptedTurns=others.takeLast(5),activeTurn=null)
-            }
-            runTurn(turn.request,turn)
+        turnToResume(index)?.let { runTurn(it.request,it) }
+    }
+    private fun continuationCommand(text: String) = text.trim().trimEnd('。','！','!','，',',','？','?') in setOf("继续","重试","接着做","继续处理","继续安排","继续这次请求","继续未完成的请求")
+    private fun turnToResume(index: Int = -1): PendingAgentTurn? {
+        val current=mutableSession.value
+        // Old sessions may have incorrectly saved the word "继续" as a new request.
+        val selectedIndex=if(index>=0) index else if(current.activeTurn?.let { continuationCommand(it.request) }==true || current.activeTurn==null)
+            current.interruptedTurns.indexOfLast { !continuationCommand(it.request) } else -1
+        val turn=if(selectedIndex>=0) current.interruptedTurns.getOrNull(selectedIndex) else current.activeTurn
+        if(turn!=null && selectedIndex>=0) {
+            val others=current.interruptedTurns.filterIndexed { i,_ -> i!=selectedIndex } + listOfNotNull(current.activeTurn?.takeUnless { continuationCommand(it.request) || it.requestId==turn.requestId })
+            mutableSession.value=current.copy(interruptedTurns=others.takeLast(5),activeTurn=turn)
         }
+        return turn
     }
     private suspend fun runTurn(text: String, resumed: PendingAgentTurn? = null) {
         if(text.isBlank()) return
@@ -64,7 +76,9 @@ class AgentCoordinator(private val services: Services, private val client: Model
             mutableSession.value=mutableSession.value.copy(activeTurn=null)
         } catch (e: Exception) {
             val changed=mutableSession.value.activeTurn?.results?.any { it["tool_name"]?.jsonPrimitive?.content in setOf("create_item", "update_item", "cancel_item", "delete_item", "write_memory", "apply_proposal","undo_change","focus_control","focus_settings","set_alarm_sound","manage_knowledge") && it["status"]?.jsonPrimitive?.content in setOf("ok", "partial") } == true
-            append(ChatLine("assistant",if(e is kotlinx.coroutines.CancellationException) "铭哥，已停止继续处理${if(changed) "，已保存的操作保留" else ""}。可以稍后继续这次请求。" else "铭哥，${if(changed) "部分操作已保存，其余尚未完成" else "这次没有完成"}：${e.message?.take(160) ?: "请求失败"}。可以继续这次请求，已执行的操作会保留。"))
+            val lastToolError=mutableSession.value.activeTurn?.results?.lastOrNull { it["status"]?.jsonPrimitive?.content=="error" && it["error_code"]?.jsonPrimitive?.content=="invalid_tool_request" }
+            val detail=lastToolError?.get("message")?.jsonPrimitive?.content?.take(100)?.let { "。最近一次工具未执行：$it" }.orEmpty()
+            append(ChatLine("assistant",if(e is kotlinx.coroutines.CancellationException) "铭哥，已停止继续处理${if(changed) "，已保存的操作保留" else ""}。可以稍后继续这次请求。" else "铭哥，${if(changed) "部分操作已保存，其余尚未完成" else "这次没有完成"}：${e.message?.take(160) ?: "请求失败"}$detail。输入“继续”或点击续接按钮，将沿用原请求和已保存进度。"))
             if(e is kotlinx.coroutines.CancellationException) throw e
         } finally { mutableBusy.value = false; withContext(NonCancellable) { save() } }
     }
@@ -184,7 +198,7 @@ class AgentCoordinator(private val services: Services, private val client: Model
         suspend fun execute(call: Decision.Call) = withContext(NonCancellable) {
             mutableSession.value=mutableSession.value.copy(activeTurn=PendingAgentTurn(text,requestId,results.toList(),ProposedAction(call.tool,call.args))); save()
             val rawResult=gateway.execute(call,"$requestId:${call.tool}:${call.args.hashCode()}",text,true)
-            val result=JsonObject(rawResult+("tool_name" to JsonPrimitive(call.tool)))
+            val result=JsonObject(rawResult+mapOf("tool_name" to JsonPrimitive(call.tool),"tool_args" to call.args))
             results+=result
             mutableSession.value=mutableSession.value.copy(activeTurn=PendingAgentTurn(text,requestId,results.toList()))
             services.sessions.write("agent_progress",JsonArray(results).toString()); save()
@@ -202,8 +216,19 @@ class AgentCoordinator(private val services: Services, private val client: Model
         }
         if(results.any { showPendingProposal(it) }) return
         var repairs = 0
-        var calls=0
-        repeat(8) { step ->
+        var calls=if(turn.inFlight!=null) 1 else 0
+        suspend fun repair(code: String,message: String) {
+            repairs++
+            results+=buildJsonObject {
+                put("status","error"); put("error_code",code); put("tool_name","model_output")
+                put("message","修复决策：$message。只输出一个对象：{\"mode\":\"say\",\"text\":\"...\"} 或 {\"mode\":\"ask\",\"question\":\"...\",\"options\":[]} 或 {\"mode\":\"call\",\"tool\":\"工具名\",\"args\":{}}。缩短内容，批量安排用 propose_changes，禁止直接声称已保存。")
+            }
+            mutableSession.value=mutableSession.value.copy(activeTurn=PendingAgentTurn(text,requestId,results.toList()))
+            save()
+            if(repairs > MAX_FORMAT_REPAIRS) error("模型连续未返回可执行决策：$message")
+        }
+        // Format repair must not consume the slot needed to finish after the tool budget.
+        repeat(MAX_TOOL_CALLS+MAX_FORMAT_REPAIRS+1) {
             val eligibleSources=services.knowledge.store.all().filter { source -> source.enabled && source.allowRemote && (source.validUntil?.let { it>=LocalDate.now(services.clock).toString() } ?: true) && (source.validFrom?.let { it<=LocalDate.now(services.clock).toString() } ?: true) }.associateBy { it.id }
             for(index in results.indices) {
                 val result=results[index]
@@ -223,6 +248,10 @@ class AgentCoordinator(private val services: Services, private val client: Model
                 put("confirmed_preferences", json.encodeToJsonElement(services.memory.activePreferences(remote=true)))
                 put("current_user_request", text)
                 put("recent_tool_results", JsonArray(results))
+                put("execution_budget",buildJsonObject {
+                    put("remaining_tool_calls",(MAX_TOOL_CALLS-calls).coerceAtLeast(0))
+                    put("instruction","多日或多项安排应合成一次 propose_changes。缺可用时间、学习量或耗时先 ask，不编造。不重复相同查询或同一失败参数；工具返回错误时修正参数或向用户说明。次数用尽时用 say 说明实际进度，或 ask 澄清；下一步会保存供继续。")
+                })
                 put("available_items", JsonArray(services.items.store.all().filter { it.status == ItemStatus.OPEN }.take(12).map { item -> buildJsonObject { put("id", item.id); put("version", item.version); put("title", item.title); put("kind", item.kind.name.lowercase()); put("schedule", json.encodeToJsonElement(item.schedule)); put("deadline", json.encodeToJsonElement(item.deadline)); put("delivery", item.delivery.name.lowercase()) } }))
                 put("habit_rules",json.encodeToJsonElement(services.habits.load()))
                 put("pending_daily_review",json.encodeToJsonElement(services.review.pending.value))
@@ -233,11 +262,10 @@ class AgentCoordinator(private val services: Services, private val client: Model
             }
             var historySize=0
             val safeHistory=mutableSession.value.history.asReversed().filter { line -> line.sources.isEmpty() || (line.sourceIds.isNotEmpty() && line.sourceIds.all { id -> eligibleSources[id]?.let { it.version==line.sourceVersions[id] }==true }) }.take(16).takeWhile { line -> historySize+=line.text.length; historySize<=6000 }.asReversed()
-            val raw = client.decide(AgentRequest(PromptPreset.render(systemPrompt,services.clock), safeHistory, context))
-            val decision = try { DecisionParser.parse(raw) } catch (e: Exception) {
-                repairs++
-                if(repairs > 2) error("模型输出格式不正确，请改用手动记录")
-                results += buildJsonObject { put("status", "error"); put("message", "修复格式：${e.message}。只输出一个 JSON 对象。") }
+            val raw = try { client.decide(AgentRequest(PromptPreset.render(systemPrompt,services.clock),safeHistory,context)) }
+                catch(e: ModelOutputException) { repair(e.errorCode,e.message.orEmpty()); return@repeat }
+            val decision = try { DecisionParser.parse(raw) } catch (e: DecisionFormatException) {
+                repair(e.errorCode,e.message.orEmpty())
                 return@repeat
             }
             when(decision) {
@@ -250,10 +278,16 @@ class AgentCoordinator(private val services: Services, private val client: Model
                 }
                 is Decision.Ask -> { mutableSession.value = mutableSession.value.copy(pendingUserRequest = text); append(ChatLine("assistant", decision.question, decision.options, sources.toList(),sourceIds=sourceIds.toList(),sourceVersions=sourceVersions)); return }
                 is Decision.Call -> {
-                    if(calls++ >= 6) error("本轮操作较多，已保存进度；请继续剩余事项")
+                    if(calls >= MAX_TOOL_CALLS) {
+                        mutableSession.value=mutableSession.value.copy(activeTurn=PendingAgentTurn(text,requestId,results.toList(),ProposedAction(decision.tool,decision.args)))
+                        save()
+                        error("本轮已调用 $MAX_TOOL_CALLS 次工具，下一步已保存；请继续剩余事项")
+                    }
+                    calls++
                     val result = execute(decision)
                     result["sources"]?.jsonArray?.forEach { source -> source.jsonObject["title"]?.jsonPrimitive?.content?.let { title -> sources.add("$title（v${source.jsonObject["version"]?.jsonPrimitive?.content ?: "1"}）") }; source.jsonObject["sourceId"]?.jsonPrimitive?.content?.let { id -> sourceIds.add(id); sourceVersions[id]=source.jsonObject["version"]?.jsonPrimitive?.int ?: 1 } }
                     if(showPendingProposal(result)) return
+                    if(results.size>=3 && results.takeLast(3).all { it==result }) error("模型连续重复同一步且没有新进展：${decision.tool}。需要更正参数、询问缺项或结束说明")
                 }
             }
         }
@@ -263,4 +297,8 @@ class AgentCoordinator(private val services: Services, private val client: Model
     private fun pause(draft: LocalDraft) { mutableSession.value = mutableSession.value.copy(pausedLocal = (mutableSession.value.pausedLocal + draft).takeLast(10)) }
     private suspend fun save() { services.sessions.write("agent_session", json.encodeToString(mutableSession.value)) }
     private fun periodLabel(period: String?) = when(period) { "morning" -> "上午"; "afternoon" -> "下午"; "evening" -> "晚上"; else -> "待办" }
+    private companion object {
+        const val MAX_TOOL_CALLS=6
+        const val MAX_FORMAT_REPAIRS=2
+    }
 }
